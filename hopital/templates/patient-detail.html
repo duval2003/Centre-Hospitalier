@@ -1,0 +1,183 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Détails du patient | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <!-- Back button -->
+        
+        <!-- Patient header -->
+        <section class="rounded-[2rem] bg-gradient-to-br from-blue-700 via-cyan-600 to-sky-500 mt-8 p-8 text-white shadow-2xl">
+            <div class="mb-6">
+                <a href="{% url 'hboard' %}" class="inline-flex items-center gap-2 text-white hover:text-black font-semibold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Retour au tableau de bord
+                </a>
+            </div>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-blue-100">Dossier patient</p>
+                    <h1 class="mt-2 text-3xl font-semibold">{{ patient.prenom|default:'' }} {{ patient.nom|default:'' }}</h1>
+                    <p class="mt-1 text-blue-100">{{ patient.email }}</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-6 py-4 backdrop-blur">
+                    <p class="text-sm text-blue-100">Informations générales</p>
+                    <div class="mt-3 space-y-2 text-sm">
+                        <p><span class="font-semibold">Genre :</span> {{ patient.sexe|default:'Non renseigné' }}</p>
+                        <p><span class="font-semibold">Téléphone :</span> {{ patient.telephone|default:'Non renseigné' }}</p>
+                        {% if patient.date_naissance %}
+                        <p><span class="font-semibold">Date de naissance :</span> {{ patient.date_naissance|date:"d/m/Y" }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Patient stats -->
+        <section class="mt-8 grid gap-6 md:grid-cols-4">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Consultations</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ consultations.count }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Rendez-vous</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ rendez_vous.count }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Dossiers médicaux</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ dossiers.count }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Médecin assigné</p>
+                <p class="mt-3 text-sm font-semibold text-slate-900">{{ request.user.prenom|default:'' }} {{ request.user.nom|default:'' }}</p>
+            </article>
+        </section>
+
+        <!-- Consultations section -->
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Consultations</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ consultations.count }}</span>
+            </div>
+            {% if consultations %}
+            <div class="mt-5 space-y-4">
+                {% for consultation in consultations %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 transition">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">
+                                <svg class="inline-block w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                </svg>
+                                {{ consultation.date_consultation|date:"d/m/Y à H:i" }}
+                            </p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Motif :</strong> {{ consultation.motif }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune consultation enregistrée pour ce patient.</p>
+            {% endif %}
+        </section>
+
+        <!-- Rendez-vous section -->
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Rendez-vous</h2>
+                <span class="rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-700">{{ rendez_vous.count }}</span>
+            </div>
+            {% if rendez_vous %}
+            <div class="mt-5 space-y-4">
+                {% for rdv in rendez_vous %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 transition">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">
+                                <svg class="inline-block w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                                {{ rdv.date_rendez_vous|date:"d/m/Y à H:i" }}
+                            </p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Motif :</strong> {{ rdv.motif }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun rendez-vous enregistré pour ce patient.</p>
+            {% endif %}
+        </section>
+
+        <!-- Dossiers médicaux section -->
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Dossiers médicaux</h2>
+                <span class="rounded-full bg-purple-50 px-3 py-1 text-sm font-medium text-purple-700">{{ dossiers.count }}</span>
+            </div>
+            {% if dossiers %}
+            <div class="mt-5 space-y-4">
+                {% for dossier in dossiers %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 transition">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">
+                                <svg class="inline-block w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                Créé le {{ dossier.date_creation|date:"d/m/Y à H:i" }}
+                            </p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Description :</strong> {{ dossier.description }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun dossier médical créé pour ce patient.</p>
+            {% endif %}
+        </section>
+
+        <!-- Formulaire de dossier médical -->
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Enregistrer un dossier médical</h2>
+            <form method="post" class="mt-5 space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_dossier">
+                <textarea name="description" rows="5" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Renseignez les antécédents, diagnostics, traitements, résultats d’examens ou observations du patient" required></textarea>
+                <button type="submit" class="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">
+                    Enregistrer le dossier
+                </button>
+            </form>
+        </section>
+
+        <!-- Actions -->
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Actions rapides</h2>
+            <div class="mt-5 flex flex-wrap gap-3">
+                <a href="{% url 'hboard' %}" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
+                    ← Retour au tableau de bord
+                </a>
+                <button class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
+                    📞 Envoyer un message
+                </button>
+            </div>
+        </section>
+    </main> 
+
+    {% include 'footer.html' %}
+</body>
+</html>

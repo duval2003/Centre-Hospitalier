@@ -1,0 +1,287 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centre Hospitalier | Accueil</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur">
+        <nav class="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+            <a href="{% url 'index' %}" class="flex items-center gap-3">
+                <img src="{% static 'images/hos.png' %}" alt="Logo du centre hospitalier" class="h-12 w-12 rounded-full object-cover shadow-sm">
+                <div>
+                    <p class="text-lg font-semibold text-slate-900">Centre Hospitalier</p>
+                    <p class="text-sm text-slate-500">Gestion médicale moderne</p>
+                </div>
+            </a>
+
+            <input type="checkbox" id="menu-toggle" class="peer hidden">
+            <label for="menu-toggle" class="inline-flex cursor-pointer rounded-full border border-slate-300 p-2 text-slate-700 transition hover:border-teal-500 hover:text-teal-600 md:hidden" aria-label="Ouvrir le menu">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </label>
+
+            <div class="hidden items-center gap-3 md:flex">
+                <a href="{% url 'connexion' %}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-teal-500 hover:text-teal-600">Connexion</a>
+                <a href="{% url 'inscription' %}" class="rounded-full bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700">Créer un compte</a>
+                <a href="{% url 'hboard' %}" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700">Tableau de bord</a>
+            </div>
+
+            <div class="absolute left-0 right-0 top-full mt-2 hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-lg peer-checked:flex md:hidden">
+                <div class="flex w-full flex-col gap-2">
+                    <a href="{% url 'connexion' %}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 text-center transition hover:border-teal-500 hover:text-teal-600">Connexion</a>
+                    <a href="{% url 'inscription' %}" class="rounded-full bg-teal-600 px-4 py-2 text-sm font-medium text-white text-center transition hover:bg-teal-700">Créer un compte</a>
+                    <a href="{% url 'hboard' %}" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white text-center transition hover:bg-slate-700">Tableau de bord</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+        <section class="grid gap-10 rounded-[2rem] bg-gradient-to-br from-teal-600 via-cyan-600 to-blue-700 p-8 text-white shadow-2xl lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
+            <div class="space-y-6">
+                <div class="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-sm font-medium backdrop-blur">
+                    Espace hospitalier intelligent
+                </div>
+                <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">
+                    Gérer les soins, les consultations et les patients avec simplicité.
+                </h1>
+                <p class="max-w-2xl text-lg text-cyan-50">
+                    Centralisez les informations médicales, les rendez-vous et les suivis pour offrir un service plus rapide et plus fiable aux patients.
+                </p>
+                <div class="flex flex-wrap gap-3">
+                    <a href="{% url 'inscription' %}" class="rounded-full bg-white px-5 py-3 text-sm font-semibold text-teal-700 transition hover:bg-slate-100">S'inscrire</a>
+                    <a href="{% url 'connexion' %}" class="rounded-full border border-white/40 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Se connecter</a>
+                </div>
+            </div>
+            <div class="rounded-3xl border border-white/20 bg-white/15 p-6 backdrop-blur">
+                <h2 class="text-xl font-semibold">À portée de main</h2>
+                <ul class="mt-4 space-y-3 text-sm text-cyan-50">
+                    <li class="rounded-2xl bg-white/10 p-3">Suivi des consultations et ordonnances</li>
+                    <li class="rounded-2xl bg-white/10 p-3">Gestion des rendez-vous et dossiers médicaux</li>
+                    <li class="rounded-2xl bg-white/10 p-3">Visibilité sur les chambres et les examens</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Carousel Section -->
+        <section class="mt-10 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-lg">
+            <div class="mb-8 text-center">
+                <h2 class="text-3xl font-semibold text-slate-900">Nos services</h2>
+                <p class="mt-2 text-slate-600">Découvrez les services de gestion médicale disponibles</p>
+            </div>
+
+            <!-- Carousel Container -->
+            <div class="relative mx-auto max-w-4xl">
+                <!-- Images Container -->
+                <div class="relative h-96 overflow-hidden rounded-2xl bg-slate-100">
+                    <!-- Slide 1 - Consultation -->
+                    <div class="carousel-slide absolute inset-0 opacity-100 transition-opacity duration-500">
+                        <img src="{% static 'images/consultation.avif' %}" alt="Consultation médicale" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Consultations</h3>
+                                <p class="mt-1 text-cyan-100">Gestion simplifiée des consultations médicales</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slide 2 - Consultation Hospitalisation -->
+                    <div class="carousel-slide absolute inset-0 opacity-0 transition-opacity duration-500">
+                        <img src="{% static 'images/consultation-hosp.jpg' %}" alt="Consultation à l'hôpital" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Consultation Hospitalière</h3>
+                                <p class="mt-1 text-cyan-100">Suivi médical en environnement hospitalier</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slide 3 - Examen -->
+                    <div class="carousel-slide absolute inset-0 opacity-0 transition-opacity duration-500">
+                        <img src="{% static 'images/examen.jpg' %}" alt="Examen médical" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Examens Médicaux</h3>
+                                <p class="mt-1 text-cyan-100">Suivi complet des examens et résultats</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slide 4 - Hospitalisation -->
+                    <div class="carousel-slide absolute inset-0 opacity-0 transition-opacity duration-500">
+                        <img src="{% static 'images/hospitalisation.jpg' %}" alt="Hospitalisation" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Hospitalisation</h3>
+                                <p class="mt-1 text-cyan-100">Gestion des chambres et des séjours</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slide 5 - Ordonnance -->
+                    <div class="carousel-slide absolute inset-0 opacity-0 transition-opacity duration-500">
+                        <img src="{% static 'images/ordonnance.jpg' %}" alt="Ordonnance médicale" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Ordonnances</h3>
+                                <p class="mt-1 text-cyan-100">Gestion des médicaments et des ordonnances</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slide 6 - Prendre Rendez-vous -->
+                    <div class="carousel-slide absolute inset-0 opacity-0 transition-opacity duration-500">
+                        <img src="{% static 'images/prendre-rendez-vous.jpg' %}" alt="Prendre rendez-vous" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Rendez-vous</h3>
+                                <p class="mt-1 text-cyan-100">Planification simple des rendez-vous médicaux</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slide 7 - Images Médicales -->
+                    <div class="carousel-slide absolute inset-0 opacity-0 transition-opacity duration-500">
+                        <img src="{% static 'images/images.jpg' %}" alt="Imagerie médicale" class="h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-6">
+                            <div class="text-white">
+                                <h3 class="text-2xl font-semibold">Imagerie Médicale</h3>
+                                <p class="mt-1 text-cyan-100">Archive et gestion des images radiologiques</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Previous Button -->
+                    <button id="prev-slide" class="absolute left-4 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/80 p-3 text-slate-900 transition hover:bg-white active:scale-95">
+                        <img src="{% static 'images/pp.png' %}" alt="Flèche gauche" class="h-6 w-6">
+                    </button>
+
+                    <!-- Next Button -->
+                    <button id="next-slide" class="absolute right-4 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/80 p-3 text-slate-900 transition hover:bg-white active:scale-95">
+                        <img src="{% static 'images/pp.png' %}" alt="Flèche droite" class="h-6 w-6 rotate-180">
+                    </button>
+                </div>
+
+                <!-- Carousel Indicators -->
+                <div class="mt-6 flex justify-center gap-3">
+                    <button class="carousel-indicator active h-3 w-3 rounded-full bg-teal-600 transition hover:bg-teal-700" data-slide="0"></button>
+                    <button class="carousel-indicator h-3 w-3 rounded-full bg-slate-300 transition hover:bg-slate-400" data-slide="1"></button>
+                    <button class="carousel-indicator h-3 w-3 rounded-full bg-slate-300 transition hover:bg-slate-400" data-slide="2"></button>
+                    <button class="carousel-indicator h-3 w-3 rounded-full bg-slate-300 transition hover:bg-slate-400" data-slide="3"></button>
+                    <button class="carousel-indicator h-3 w-3 rounded-full bg-slate-300 transition hover:bg-slate-400" data-slide="4"></button>
+                    <button class="carousel-indicator h-3 w-3 rounded-full bg-slate-300 transition hover:bg-slate-400" data-slide="5"></button>
+                    <button class="carousel-indicator h-3 w-3 rounded-full bg-slate-300 transition hover:bg-slate-400" data-slide="6"></button>
+                </div>
+            </div>
+
+            <!-- Services Description -->
+            <div class="mt-10 grid gap-6 md:grid-cols-3">
+                <article class="rounded-3xl border border-slate-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-6 shadow-sm">
+                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-teal-600">Patients</p>
+                    <h3 class="mt-3 text-2xl font-semibold text-slate-900">Gestion complète</h3>
+                    <p class="mt-2 text-sm text-slate-600">Sauvegardez les profils, les antécédents et les informations de contact de chaque patient.</p>
+                </article>
+                <article class="rounded-3xl border border-slate-200 bg-gradient-to-br from-cyan-50 to-blue-50 p-6 shadow-sm">
+                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-600">Médecins</p>
+                    <h3 class="mt-3 text-2xl font-semibold text-slate-900">Équipe dédiée</h3>
+                    <p class="mt-2 text-sm text-slate-600">Organisez les spécialités, les consultations et les interactions avec les praticiens.</p>
+                </article>
+                <article class="rounded-3xl border border-slate-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 shadow-sm">
+                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Hospitalisation</p>
+                    <h3 class="mt-3 text-2xl font-semibold text-slate-900">Suivi en temps réel</h3>
+                    <p class="mt-2 text-sm text-slate-600">Supervisez l'occupation des chambres et le parcours de soins depuis une seule interface.</p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+   <footer class="mt-12 border-t border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 text-slate-300">
+        <div class="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.6fr] lg:px-8">
+            <div>
+                <p class="text-lg font-semibold text-white">Centre Hospitalier</p>
+                <p class="mt-2 text-sm leading-6 text-slate-400">Votre plateforme de gestion médicale moderne pour simplifier l'organisation des soins, des consultations et des patients.</p>
+            </div>
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">Contact</p>
+                <ul class="mt-3 space-y-2 text-sm text-slate-400">
+                    <li><img src="{% static 'images/localisation.png' %}" alt="Logo d'une localisation" class="h-12 w-12 rounded-full object-cover shadow-sm"> Avenue de la Santé, Yaounde</li>
+                    <li><img src="{% static 'images/tel.png' %}" alt="Logo du telephone" class="h-12 w-12 rounded-full object-cover shadow-sm"> +237 673 56 59 77</li>
+                    <li><img src="{% static 'images/mail.png' %}" alt="Logo du courrier électronique" class="h-12 w-12 rounded-full object-cover shadow-sm"> contact@centre-hospitalier.sn</li>
+                </ul>
+            </div>
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">Réseaux sociaux</p>
+                <div class="mt-3 flex flex-wrap gap-3 text-sm">
+                    <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" class="rounded-full border border-slate-700 px-3 py-2 transition hover:border-teal-400 hover:text-white">Facebook</a>
+                    <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" class="rounded-full border border-slate-700 px-3 py-2 transition hover:border-teal-400 hover:text-white">Twitter</a>
+                    <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" class="rounded-full border border-slate-700 px-3 py-2 transition hover:border-teal-400 hover:text-white">LinkedIn</a>
+                </div>
+            </div>
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">Liens rapides</p>
+                <div class="mt-3 flex flex-col gap-2 text-sm text-slate-400">
+                    <a href="{% url 'index' %}" class="transition hover:text-white">Accueil</a>
+                    <a href="{% url 'connexion' %}" class="transition hover:text-white">Connexion</a>
+                    <a href="{% url 'inscription' %}" class="transition hover:text-white">Inscription</a>
+                </div>
+            </div>
+        </div>
+        <div class="border-t border-slate-700 px-6 py-4 text-center text-sm text-slate-500 lg:px-8">
+            © 2026 Centre Hospitalier. Tous droits réservés.
+        </div>
+    </footer>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.carousel-slide');
+        const indicators = document.querySelectorAll('.carousel-indicator');
+        const totalSlides = slides.length;
+
+        function showSlide(index) {
+            // Update slides
+            slides.forEach((slide, i) => {
+                slide.classList.toggle('opacity-100', i === index);
+                slide.classList.toggle('opacity-0', i !== index);
+            });
+
+            // Update indicators
+            indicators.forEach((indicator, i) => {
+                indicator.classList.toggle('bg-teal-600', i === index);
+                indicator.classList.toggle('bg-slate-300', i !== index);
+            });
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % totalSlides;
+            showSlide(currentSlide);
+        }
+
+        function prevSlide() {
+            currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+            showSlide(currentSlide);
+        }
+
+        // Event listeners
+        document.getElementById('next-slide').addEventListener('click', nextSlide);
+        document.getElementById('prev-slide').addEventListener('click', prevSlide);
+
+        // Indicator clicks
+        indicators.forEach((indicator, index) => {
+            indicator.addEventListener('click', () => {
+                currentSlide = index;
+                showSlide(currentSlide);
+            });
+        });
+
+        // Auto-advance carousel every 5 seconds
+        setInterval(nextSlide, 5000);
+    </script>
+</body>
+</html>

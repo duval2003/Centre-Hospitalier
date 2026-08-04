@@ -1,0 +1,82 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/connexion.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="{% static 'js/code.js' %}"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-100 via-cyan-50 to-teal-50">
+    <div class="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
+        <div class="grid w-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl lg:grid-cols-[0.95fr_1.05fr]">
+            <div class="bg-gradient-to-br from-teal-600 to-cyan-700 p-8 text-white sm:p-10">
+                <a href="{% url 'index' %}" class="inline-flex items-center gap-2 text-sm font-medium text-cyan-50 transition hover:text-black">
+                    <span aria-hidden="true">←</span> Retour à l'accueil
+                </a>
+                <div class="mt-10 flex items-center gap-3">
+                    <img src="{% static 'images/logoconnexion.png' %}" alt="Logo connexion" class="h-14 w-14 rounded-full bg-white/20 p-2">
+                    <div>
+                        <p class="text-sm uppercase tracking-[0.25em] text-cyan-100">Bienvenue</p>
+                        <h2 class="text-2xl font-semibold">Accès sécurisé</h2>
+                    </div>
+                </div>
+                <p class="mt-6 text-sm leading-7 text-cyan-50">
+                    Connectez-vous à votre espace pour consulter les dossiers, les rendez-vous et la gestion hospitalière.
+                </p>
+                <ul class="mt-6 space-y-3 text-sm text-cyan-50">
+                    <li class="rounded-2xl bg-white/10 p-3">Suivi des consultations</li>
+                    <li class="rounded-2xl bg-white/10 p-3">Gestion du tableau de bord</li>
+                    <li class="rounded-2xl bg-white/10 p-3">Accès rapide aux dossiers</li>
+                </ul>
+            </div>
+
+            <div class="p-8 sm:p-10">
+                <div class="mb-8 flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-[0.25em] text-teal-600">Connexion</p>
+                        <h1 class="text-3xl font-semibold text-slate-900">Identifiez-vous</h1>
+                    </div>
+                    <a href="{% url 'inscription' %}" class="text-sm font-medium text-teal-700 transition hover:text-teal-800">Créer un compte</a>
+                </div>
+
+                <form action="{% url 'login_view' %}" method="post" class="space-y-5">
+                    {% csrf_token %}
+                    {% if errors %}
+                    <div class="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                        {% for error in errors %}
+                        <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label for="email" class="mb-2 block text-sm font-semibold text-slate-700">Adresse e-mail</label>
+                        <input id="email" type="email" name="email" autocomplete="email" placeholder="exemple@hopital.com" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none ring-0 transition focus:border-teal-500" />
+                    </div>
+
+                    <div>
+                        <label for="mot_de_passe" class="mb-2 block text-sm font-semibold text-slate-700">Mot de passe</label>
+                        <div class="relative">
+                            <input id="mot_de_passe" type="password" name="mot_de_passe" autocomplete="current-password" placeholder="Votre mot de passe" minlength="8" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 pr-12 text-base text-slate-900 outline-none ring-0 transition focus:border-teal-500" />
+                            <button type="button" onclick="togglePassword('mot_de_passe', this)" class="absolute inset-y-0 right-3 flex items-center text-slate-500 transition hover:text-teal-700" aria-label="Afficher ou masquer le mot de passe">
+                                <img src="{% static 'images/youvert.png' %}" alt="Icône de l'œil" class="h-5 w-5">
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full rounded-2xl bg-teal-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700">Se connecter</button>
+                </form>
+
+                <p class="mt-6 text-center text-sm text-slate-600">
+                    Vous n’avez pas encore de compte ?
+                    <a href="{% url 'inscription' %}" class="ml-1 font-semibold text-teal-700 transition hover:text-teal-800">Créer un compte</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

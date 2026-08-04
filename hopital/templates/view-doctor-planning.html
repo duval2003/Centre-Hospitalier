@@ -1,0 +1,98 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emploi du temps du médecin | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-6xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] bg-gradient-to-br from-cyan-700 via-sky-600 to-blue-600 p-8 text-white shadow-2xl">
+            <div class="mb-6">
+                <a href="{% url 'hboard' %}" class="inline-flex items-center gap-2 text-white hover:text-sky-100 font-semibold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Retour au tableau de bord
+                </a>
+            </div>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-100">Agenda du médecin</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Dr {{ doctor.prenom|default:'' }} {{ doctor.nom|default:'' }}</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-cyan-50">Consultez les jours et créneaux disponibles pour cette consultation.</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p class="text-sm text-cyan-100">Spécialité</p>
+                    <p class="text-lg font-semibold">{{ doctor.role|default:'Médecin' }}</p>
+                </div>
+            </div>
+        </section>
+
+        {% if assign_message %}
+        <div class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+            {{ assign_message }}
+        </div>
+        {% endif %}
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Disponibilités</h2>
+                    <p class="text-sm text-slate-500">Les créneaux ci-dessous sont visibles par le patient.</p>
+                </div>
+                {% if request.user.role == 'patient' or request.user.role == 'user' %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="assign_doctor">
+                    <button type="submit" class="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
+                        Définir comme mon médecin
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            {% if planning_items %}
+                <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {% for day in planning_by_day %}
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <h3 class="mb-3 text-base font-bold text-slate-900">{{ day.label }}</h3>
+                        {% if day.items %}
+                            <div class="space-y-3">
+                                {% for slot in day.items %}
+                                <div class="rounded-xl border border-cyan-100 bg-white p-3 shadow-sm">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-sm font-semibold text-cyan-700">{{ slot.heure_debut|time:'H:i' }} - {{ slot.heure_fin|time:'H:i' }}</span>
+                                    </div>
+                                    {% if slot.description %}
+                                    <p class="mt-2 text-sm text-slate-600">{{ slot.description }}</p>
+                                    {% else %}
+                                    <p class="mt-2 text-sm text-slate-500">Consultation disponible</p>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-sm text-slate-400">Aucun créneau pour ce jour.</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
+                    <p class="text-base font-semibold text-slate-700">Aucun créneau enregistré</p>
+                    <p class="mt-2 text-sm">Ce médecin n’a pas encore ajouté son emploi du temps.</p>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>

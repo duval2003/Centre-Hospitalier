@@ -1,0 +1,40 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pied de page</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body>
+     <footer class="mt-12 border-t border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 text-slate-300">
+        <div class="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[1.2fr_0.8fr_0.8fr] lg:px-8">
+            <div class="pr-8 lg:border-r lg:border-slate-700">
+                <p class="text-lg font-semibold text-white">Centre Hospitalier</p>
+                <p class="mt-2 text-sm leading-6 text-slate-400">Votre plateforme de gestion médicale moderne pour simplifier l’organisation des soins, des consultations et des patients.</p>
+            </div>
+            <div class="lg:border-r lg:border-slate-700">
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">Contact</p>
+                <ul class="mt-3 space-y-2 text-sm text-slate-400">
+                    <li><img src="{% static 'images/localisation.png' %}" alt="Logo d'une localisation" class="h-12 w-12 rounded-full object-cover shadow-sm"> Avenue de la Santé, Yaounde</li>
+                    <li><img src="{% static 'images/tel.png' %}" alt="Logo du telephone" class="h-12 w-12 rounded-full object-cover shadow-sm"> +237 673 56 59 77</li>
+                    <li><img src="{% static 'images/mail.png' %}" alt="Logo du courrier électronique" class="h-12 w-12 rounded-full object-cover shadow-sm"> contact@centre-hospitalier.sn</li>
+                </ul>
+            </div>
+            <div class="pr-auto lg:border-r lg:border-slate-700">
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">Réseaux sociaux</p>
+                <div class="mt-3 flex flex-wrap gap-3 text-sm">
+                    <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" class="rounded-full border border-slate-700 px-3 py-2 transition hover:border-teal-400 hover:text-white">Facebook</a>
+                    <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" class="rounded-full border border-slate-700 px-3 py-2 transition hover:border-teal-400 hover:text-white">Twitter</a>
+                    <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" class="rounded-full border border-slate-700 px-3 py-2 transition hover:border-teal-400 hover:text-white">LinkedIn</a>
+                </div>
+            </div>
+        </div>
+        <div class="border-t border-slate-700 px-6 py-4 text-center text-sm text-slate-500 lg:px-8">
+            © 2026 Centre Hospitalier. Tous droits réservés.
+    </div>
+    </footer>
+</body>
+</html>

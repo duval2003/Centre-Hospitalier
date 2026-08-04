@@ -1,0 +1,163 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultations patient | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] bg-gradient-to-br from-emerald-700 via-teal-600 to-cyan-600 p-8 text-white shadow-2xl">
+            <div class="mb-6">
+                <a href="{% url 'hboard' %}" class="inline-flex items-center gap-2 text-white hover:text-sky-400 font-semibold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Retour au tableau de bord
+                </a>
+            </div>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-100">Consultations</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Demande de consultation</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-emerald-50">Envoyez une demande à votre médecin traitant et suivez l’historique de vos consultations.</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p class="text-sm text-emerald-100">Consultations</p>
+                    <p class="text-lg font-semibold">{{ consultation_count }} total</p>
+                    <p class="text-sm text-emerald-200">{{ pending_count }} en attente</p>
+                </div>
+            </div>
+        </section>
+
+        {% if message %}
+        <section class="mt-6 rounded-[2rem] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+            {{ message }}
+        </section>
+        {% endif %}
+
+        {% if errors %}
+        <section class="mt-6 rounded-[2rem] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            <ul class="list-disc pl-5">
+                {% for error in errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Votre médecin traitant</h2>
+            {% if assigned_doctor %}
+            <div class="mt-4 rounded-2xl bg-slate-50 p-4">
+                <p class="font-semibold text-slate-900">Dr {{ assigned_doctor.prenom|default:'' }} {{ assigned_doctor.nom|default:'' }}</p>
+                <p class="text-sm text-slate-600">{{ assigned_doctor.email|default:'Aucune information complémentaire' }}</p>
+            </div>
+            {% else %}
+            <div class="mt-4 rounded-2xl bg-rose-50 p-4">
+                <p class="font-semibold text-slate-900">Aucun médecin assigné</p>
+                <p class="mt-2 text-sm text-slate-600">Vous devez définir un médecin traitant pour envoyer une demande de consultation.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        {% if assigned_doctor %}
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Nouvelle demande de consultation</h2>
+            <form method="post" class="mt-5 space-y-6">
+                {% csrf_token %}
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label for="date_consultation" class="block text-sm font-medium text-slate-700">Date et heure</label>
+                        <input id="date_consultation" name="date_consultation" type="datetime-local" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white" required>
+                    </div>
+                    <div>
+                        <label for="motif" class="block text-sm font-medium text-slate-700">Motif</label>
+                        <textarea id="motif" name="motif" rows="4" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white" placeholder="Expliquez pourquoi vous souhaitez consulter" required></textarea>
+                    </div>
+                </div>
+                <button type="submit" class="rounded-2xl bg-cyan-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">Envoyer la demande</button>
+            </form>
+        </section>
+        {% endif %}
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <form method="get" class="flex flex-col gap-3 sm:flex-row">
+                <input type="text" name="q" value="{{ search_query|default:'' }}" placeholder="Rechercher une consultation" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                <button type="submit" class="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">Rechercher</button>
+                {% if search_query %}
+                <a href="{% url 'patient_consultation' %}" class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Tout afficher</a>
+                {% endif %}
+            </form>
+
+            <div class="mt-6 flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Historique des consultations</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ consultation_count }}</span>
+            </div>
+            {% if patient_consultations %}
+            <div class="mt-5 space-y-4">
+                {% for consultation in patient_consultations %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ consultation.motif }}</p>
+                            <p class="mt-1 text-sm text-slate-600">{{ consultation.date_consultation|date:'d/m/Y H:i' }}</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{{ consultation.status|capfirst }}</span>
+                            {% if consultation.status == 'pending' %}
+                            <button type="button" onclick="document.getElementById('edit-form-{{ consultation.pk }}').classList.toggle('hidden')" class="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100">Modifier</button>
+                            <form method="post" class="inline" onsubmit="return confirm('Voulez-vous vraiment supprimer cette demande de consultation ?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="consultation_id" value="{{ consultation.pk }}">
+                                <button type="submit" class="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100">Supprimer</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if consultation.reponse_medecin %}
+                    <div class="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-700 shadow-sm">
+                        <p class="font-semibold text-slate-900">Réponse du médecin</p>
+                        <p class="mt-2">{{ consultation.reponse_medecin }}</p>
+                    </div>
+                    {% endif %}
+                    {% if consultation.status == 'pending' %}
+                    <form id="edit-form-{{ consultation.pk }}" method="post" class="mt-4 hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="edit">
+                        <input type="hidden" name="consultation_id" value="{{ consultation.pk }}">
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label for="date_consultation_{{ consultation.pk }}" class="block text-sm font-medium text-slate-700">Date et heure</label>
+                                <input id="date_consultation_{{ consultation.pk }}" name="date_consultation" type="datetime-local" value="{{ consultation.date_consultation|date:'Y-m-d\TH:i' }}" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white" required>
+                            </div>
+                            <div>
+                                <label for="motif_{{ consultation.pk }}" class="block text-sm font-medium text-slate-700">Motif</label>
+                                <textarea id="motif_{{ consultation.pk }}" name="motif" rows="3" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white" required>{{ consultation.motif }}</textarea>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <button type="submit" class="rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">Enregistrer</button>
+                            <button type="button" onclick="document.getElementById('edit-form-{{ consultation.pk }}').classList.add('hidden')" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Annuler</button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune consultation enregistrée pour le moment.</p>
+            {% endif %}
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>

@@ -1,0 +1,322 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espace médecin | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] bg-gradient-to-br from-blue-700 via-cyan-600 to-sky-500 p-8 text-white shadow-2xl">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-blue-100">Espace médecin</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Bienvenue Dr {{ request.user.prenom|default:request.user.username }} {{ request.user.nom|default:'' }}</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-blue-50">Gérez vos consultations, rendez-vous et suivi des patients depuis un espace dédié.</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p class="text-sm text-blue-100">Rôle</p>
+                    <p class="text-lg font-semibold">Médecin</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <form method="get" action="{% url 'hboard' %}" class="flex flex-col gap-3 sm:flex-row w-full">
+                    <input type="text" name="q" value="{{ search_results.query|default:'' }}" placeholder="Rechercher un patient, une consultation ou un rendez-vous" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                    <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Rechercher</button>
+                </form>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{% url 'medecin_consultation' %}" class="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 self-start">Page dédiée consultation</a>
+                    <a href="{% url 'medecin_planning' %}" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 self-start">Gérer mon emploi du temps</a>
+                </div>
+            </div>
+        </section>
+
+        {% if search_results.query %}
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 class="text-xl font-semibold text-slate-900">Résultats de recherche</h2>
+                <span class="text-sm text-slate-500">« {{ search_results.query }} »</span>
+            </div>
+            {% if search_results.items %}
+            <div class="mt-5 space-y-3">
+                {% for item in search_results.items %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="font-semibold text-slate-900">{{ item.title }}</p>
+                        <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{{ item.type }}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-600">{{ item.detail }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun résultat trouvé pour cette recherche.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Consultations en attente</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ pending_consultations.count }}</span>
+            </div>
+            {% if consultation_response_errors %}
+            <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <ul class="list-disc pl-5">
+                    {% for error in consultation_response_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% if consultation_response_message %}
+            <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                {{ consultation_response_message }}
+            </div>
+            {% endif %}
+            {% if pending_consultations %}
+            <div class="mt-5 space-y-4">
+                {% for consultation in pending_consultations %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">Patient : {{ consultation.patient.prenom }} {{ consultation.patient.nom }}</p>
+                            <p class="text-sm text-slate-600">Date souhaitée : {{ consultation.date_consultation|date:"d/m/Y à H:i" }}</p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Motif :</strong> {{ consultation.motif }}</p>
+                        </div>
+                        <form method="post" action="{% url 'hboard' %}" class="space-y-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="reply_consultation">
+                            <input type="hidden" name="consultation_id" value="{{ consultation.pk }}">
+                            {% comment %} <label class="block text-sm font-medium text-slate-700">Réponse au patient</label>
+                            <textarea name="response" rows="3" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Écrivez votre réponse ici..."></textarea>
+                            <label class="block text-sm font-medium text-slate-700">Statut</label>
+                            <select name="status" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500">
+                                <option value="answered">Répondue</option>
+                                <option value="confirmed">Confirmée</option>
+                                <option value="rejected">Rejetée</option>
+                            </select> {% endcomment %}
+                            {% comment %} <button type="submit" class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">Envoyer la réponse</button> {% endcomment %}
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune consultation en attente pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-8 grid gap-6 md:grid-cols-3">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Rendez-vous</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ medecin_rendez_vous }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Consultations</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ medecin_consultations }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Patients suivis</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ medecin_patients }}</p>
+            </article>
+        </section>
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Créer un compte rendu d’examen</h2>
+                <span class="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">Nouveau</span>
+            </div>
+            {% if exam_result_errors %}
+            <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <ul class="list-disc pl-5">
+                    {% for error in exam_result_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% if exam_result_message %}
+            <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                {{ exam_result_message }}
+            </div>
+            {% endif %}
+            {% if assigned_patients %}
+            <form method="post" action="{% url 'hboard' %}" class="mt-5 space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_exam_result">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Patient</label>
+                        <select name="patient_id" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" required>
+                            <option value="">Sélectionner un patient</option>
+                            {% for patient in assigned_patients %}
+                            <option value="{{ patient.pk }}">{{ patient.prenom|default:'' }} {{ patient.nom|default:'' }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Type d’examen</label>
+                        <input type="text" name="type_examen" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Ex : Radio du thorax" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Date de l’examen</label>
+                        <input type="datetime-local" name="date_examen" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Interprétation</label>
+                        <input type="text" name="interpretation" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Interprétation clinique">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Prix de l’examen (FCFA)</label>
+                        <input type="number" step="100" min="0" name="prix_examen" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Ex : 15000" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Résultat</label>
+                    <textarea name="resultat" rows="4" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Renseignez le compte rendu complet" required></textarea>
+                </div>
+                <button type="submit" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Envoyer au secrétariat</button>
+            </form>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun patient n’est assigné à votre cabinet pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Prescrire une ordonnance</h2>
+                <span class="rounded-full bg-violet-50 px-3 py-1 text-sm font-medium text-violet-700">Prescription</span>
+            </div>
+            {% if prescription_errors %}
+            <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <ul class="list-disc pl-5">
+                    {% for error in prescription_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% if prescription_message %}
+            <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                {{ prescription_message }}
+            </div>
+            {% endif %}
+            {% if assigned_patients %}
+            <form method="post" action="{% url 'hboard' %}" class="mt-5 space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_prescription">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Patient</label>
+                        <select name="patient_id" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" required>
+                            <option value="">Sélectionner un patient</option>
+                            {% for patient in assigned_patients %}
+                            <option value="{{ patient.pk }}">{{ patient.prenom|default:'' }} {{ patient.nom|default:'' }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Médicaments</label>
+                        <select name="medicament_ids" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" multiple size="6" required>
+                            {% for medicament in medicaments %}
+                            <option value="{{ medicament.pk }}">{{ medicament.nom }} (Stock : {{ medicament.quantite_disponible|default:0 }})</option>
+                            {% endfor %}
+                        </select>
+                        <p class="mt-2 text-xs text-slate-500">Maintenez Ctrl/Cmd pour sélectionner plusieurs médicaments.</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Posologie</label>
+                    <textarea name="posologie" rows="4" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-cyan-500" placeholder="Ex : 1 comprimé matin et soir pendant 5 jours" required></textarea>
+                </div>
+                <button type="submit" class="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-700">Envoyer l’ordonnance</button>
+            </form>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun patient n’est assigné pour prescrire une ordonnance.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Mes rendez-vous</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ doctor_rendez_vous_list.count }}</span>
+            </div>
+            {% if doctor_rendez_vous_list %}
+            <div class="mt-5 space-y-4">
+                {% for rdv in doctor_rendez_vous_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="font-semibold text-slate-900">{{ rdv.date_rendez_vous|date:"d/m/Y à H:i" }}</p>
+                    <p class="mt-2 text-sm text-slate-600"><strong>Patient :</strong> {{ rdv.patient.prenom|default:'' }} {{ rdv.patient.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Motif :</strong> {{ rdv.motif }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun rendez-vous n’a encore été demandé.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Stock de medicaments</h2>
+                <span class="rounded-full bg-cyan-50 px-3 py-1 text-sm font-medium text-cyan-700">{{ all_rendez_vous_list.count }}</span>
+            </div>
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+               <a href="{% url 'stock_medicaments' %}" class="rounded-full bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700">Voir le stock</a>
+            </div>
+        </section>
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Patients assignés</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ assigned_patients.count }} patient(s)</span>
+            </div>
+            {% if assigned_patients %}
+            <div class="mt-5 grid gap-3 md:grid-cols-2">
+                {% for patient in assigned_patients %}
+                <a href="{% url 'patient_detail' patient.pk %}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-400 hover:bg-blue-50 hover:shadow-md cursor-pointer">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex-1">
+                            <p class="font-semibold text-slate-900 hover:text-blue-600">{{ patient.prenom|default:'' }} {{ patient.nom|default:'' }}</p>
+                            <p class="mt-1 text-sm text-slate-600">{{ patient.email|default:'Aucun email' }}</p>
+                            {% if patient.telephone %}
+                            <p class="mt-1 text-sm text-slate-500">📞 {{ patient.telephone }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="flex-shrink-0">
+                            <svg class="w-5 h-5 text-slate-400 hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun patient n’a encore été assigné à votre cabinet.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-8 rounded-[2rem] text-center border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Priorités du jour</h2>
+            <div class="mt-5 space-y-3 text-sm text-slate-600">
+                <div class="rounded-2xl bg-slate-50 p-4">• Examiner les consultations à venir et préparer les soins.</div>
+                <div class="rounded-2xl bg-slate-50 p-4">• Suivre les patients avec un dossier médical récent.</div>
+                <div class="rounded-2xl bg-slate-50 p-4">• Assurer la coordination avec le secrétariat et l’administration.</div>
+            </div>
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>

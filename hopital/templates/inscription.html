@@ -1,0 +1,133 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/inscription.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="{% static 'js/code.js' %}"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-100 via-cyan-50 to-teal-50">
+    <div class="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
+        <div class="w-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+            <div class="bg-gradient-to-r from-teal-600 to-cyan-700 p-8 text-white sm:p-10">
+                <a href="{% url 'index' %}" class="inline-flex items-center gap-2 text-sm font-medium text-cyan-50 transition hover:text-white">
+                    <span aria-hidden="true">←</span> Retour à l'accueil
+                </a>
+                <div class="mt-6">
+                    <p class="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">Inscription</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Créer votre compte</h1>
+                    <p class="mt-3 max-w-2xl text-sm leading-7 text-cyan-50">Enregistrez les informations essentielles du patient, du médecin ou de l’équipe administrative pour démarrer votre parcours.</p>
+                </div>
+            </div>
+
+            <div class="p-8 sm:p-10">
+                <form action="{% url 'register_view' %}" method="post" class="grid gap-6 md:grid-cols-2">
+                    {% csrf_token %}
+                    {% if errors %}
+                    <div class="md:col-span-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                        {% for error in errors %}
+                        <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label for="nom" class="mb-2 block text-sm font-semibold text-slate-700">Nom</label>
+                        <input id="nom" type="text" name="nom" placeholder="Nom de famille" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                    </div>
+
+                    <div>
+                        <label for="prenom" class="mb-2 block text-sm font-semibold text-slate-700">Prénom</label>
+                        <input id="prenom" type="text" name="prenom" placeholder="Prénom" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                    </div>
+
+                    <div>
+                        <label for="sexe" class="mb-2 block text-sm font-semibold text-slate-700">Sexe</label>
+                        <select id="sexe" name="sexe" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500">
+                            <option value="">Sélectionner</option>
+                            <option value="Homme">Homme</option>
+                            <option value="Femme">Femme</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="telephone" class="mb-2 block text-sm font-semibold text-slate-700">Téléphone</label>
+                        <input id="telephone" type="tel" name="telephone" placeholder="+237 699 12 34 56" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                    </div>
+
+                    <div>
+                        <label for="date_de_naissance" class="mb-2 block text-sm font-semibold text-slate-700">Date de naissance</label>
+                        <input id="date_de_naissance" type="date" name="date_de_naissance" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                    </div>
+
+
+                    <div>
+                        <label for="groupe_sanguin" class="mb-2 block text-sm font-semibold text-slate-700">Groupe Sanguin</label>
+                        <div class="relative">
+                            <select id="groupe_sanguin" name="groupe_sanguin"
+                                    class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500">
+                                <option value="" {% if not patient.groupe_sanguin %}selected{% endif %}>Non spécifié</option>
+                                <option value="A+" {% if patient.groupe_sanguin == 'A+' %}selected{% endif %}>A+</option>
+                                <option value="A-" {% if patient.groupe_sanguin == 'A-' %}selected{% endif %}>A-</option>
+                                <option value="B+" {% if patient.groupe_sanguin == 'B+' %}selected{% endif %}>B+</option>
+                                <option value="B-" {% if patient.groupe_sanguin == 'B-' %}selected{% endif %}>B-</option>
+                                <option value="AB+" {% if patient.groupe_sanguin == 'AB+' %}selected{% endif %}>AB+</option>
+                                <option value="AB-" {% if patient.groupe_sanguin == 'AB-' %}selected{% endif %}>AB-</option>
+                                <option value="O+" {% if patient.groupe_sanguin == 'O+' %}selected{% endif %}>O+</option>
+                                <option value="O-" {% if patient.groupe_sanguin == 'O-' %}selected{% endif %}>O-</option>
+                            </select>
+                            <span class="absolute left-3.5 top-3.5 text-slate-400">
+                                <i class="fa-solid fa-droplet text-rose-500"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    {% comment %} <div>
+                        <label for="groupe_sanguin" class="mb-2 block text-sm font-semibold text-slate-700">Groupe sanguin</label>
+                        <input id="groupe_sanguin" type="text" name="groupe_sanguin" placeholder="A+, O-, AB+(Cas Echeant)" class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                    </div> {% endcomment %}
+
+                    <div class="md:col-span-2">
+                        <label for="adresse" class="mb-2 block text-sm font-semibold text-slate-700">Adresse</label>
+                        <textarea id="adresse" name="adresse" rows="3" placeholder="Adresse complète" class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500"></textarea>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="email" class="mb-2 block text-sm font-semibold text-slate-700">Adresse e-mail</label>
+                        <input id="email" type="email" name="email" placeholder="exemple@hopital.com" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                    </div>
+
+                    <div>
+                        <label for="mot_de_passe" class="mb-2 block text-sm font-semibold text-slate-700">Mot de passe</label>
+                        <div class="relative">
+                            <input id="mot_de_passe" type="password" name="mot_de_passe" placeholder="Minimum 8 caractères" minlength="8" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 pr-12 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                            <button type="button" onclick="togglePassword('mot_de_passe', this)" class="absolute inset-y-0 right-3 flex items-center text-slate-500 transition hover:text-teal-700" aria-label="Afficher ou masquer le mot de passe">
+                                <img src="{% static 'images/youvert.png' %}" alt="Icône de l'œil" class="h-5 w-5">
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="mot_de_passe_confirmation" class="mb-2 block text-sm font-semibold text-slate-700">Confirmer le mot de passe</label>
+                        <div class="relative">
+                            <input id="mot_de_passe_confirmation" type="password" name="mot_de_passe_confirmation" placeholder="Répétez le mot de passe" minlength="8" required class="block w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 pr-12 text-base text-slate-900 outline-none transition focus:border-teal-500" />
+                            <button type="button" onclick="togglePassword('mot_de_passe_confirmation', this)" class="absolute inset-y-0 right-3 flex items-center text-slate-500 transition hover:text-teal-700" aria-label="Afficher ou masquer le mot de passe">
+                                <img src="{% static 'images/youvert.png' %}" alt="Icône de l'œil" class="h-5 w-5">
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <button type="submit" class="rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700">Créer mon compte</button>
+                        <a href="{% url 'connexion' %}" class="text-sm font-medium text-slate-600 transition hover:text-teal-700">J’ai déjà un compte</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,143 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultations médecin | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] bg-gradient-to-br from-blue-700 via-cyan-600 to-sky-500 p-8 text-white shadow-2xl">
+            <div class="mb-6">
+                <a href="{% url 'hboard' %}" class="inline-flex items-center gap-2 text-white hover:text-sky-400 font-semibold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Retour au tableau de bord
+                </a>
+            </div>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-blue-100">Consultations</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Gestion des consultations</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-blue-50">Consultez les demandes, répondez aux patients et suivez l’historique des consultations.</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p class="text-sm text-blue-100">Consultations</p>
+                    <p class="text-lg font-semibold">{{ consultation_count }} total</p>
+                    <p class="text-sm text-blue-200">{{ pending_count }} en attente</p>
+                </div>
+            </div>
+        </section>
+
+        {% if message %}
+        <section class="mt-6 rounded-[2rem] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+            {{ message }}
+        </section>
+        {% endif %}
+
+        {% if errors %}
+        <section class="mt-6 rounded-[2rem] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            <ul class="list-disc pl-5">
+                {% for error in errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Demandes en attente</h2>
+            {% if pending_consultations %}
+            <div class="mt-5 space-y-4">
+                {% for consultation in pending_consultations %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ consultation.patient.prenom }} {{ consultation.patient.nom }}</p>
+                            <p class="mt-1 text-sm text-slate-600">{{ consultation.date_consultation|date:'d/m/Y H:i' }}</p>
+                            <p class="mt-2 text-sm text-slate-700">{{ consultation.motif }}</p>
+                        </div>
+                        <form method="post" class="space-y-4 rounded-2xl bg-white p-4 shadow-sm">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="reply_consultation">
+                            <input type="hidden" name="consultation_id" value="{{ consultation.pk }}">
+                            <div>
+                                <label for="response_{{ consultation.pk }}" class="block text-sm font-medium text-slate-700">Réponse</label>
+                                <textarea id="response_{{ consultation.pk }}" name="response" rows="3" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white" placeholder="Entrez votre réponse au patient" required></textarea>
+                            </div>
+                            <div>
+                                <label for="status_{{ consultation.pk }}" class="block text-sm font-medium text-slate-700">Statut</label>
+                                <select id="status_{{ consultation.pk }}" name="status" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                                    <option value="answered">Répondu</option>
+                                    <option value="confirmed">Confirmé</option>
+                                    <option value="rejected">Rejeté</option>
+                                </select>
+                            </div>
+                            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="signal_as_harassment" class="rounded text-rose-600 focus:ring-rose-500">
+                                    <span>Signaler cette demande comme harcèlement</span>
+                                </label>
+                                <textarea name="signal_reason" rows="2" class="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-rose-500 focus:bg-white" placeholder="Raison du signalement (facultatif)"></textarea>
+                            </div>
+                            <button type="submit" class="rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">Envoyer la réponse</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune nouvelle demande de consultation en attente.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <form method="get" class="flex flex-col gap-3 sm:flex-row">
+                <input type="text" name="q" value="{{ search_query|default:'' }}" placeholder="Rechercher une consultation" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                <button type="submit" class="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">Rechercher</button>
+                {% if search_query %}
+                <a href="{% url 'medecin_consultation' %}" class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Tout afficher</a>
+                {% endif %}
+            </form>
+
+            <div class="mt-6 flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Historique des consultations</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ consultation_count }}</span>
+            </div>
+            {% if all_consultations %}
+            <div class="mt-5 space-y-4">
+                {% for consultation in all_consultations %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ consultation.patient.prenom }} {{ consultation.patient.nom }}</p>
+                            <p class="mt-1 text-sm text-slate-600">{{ consultation.date_consultation|date:'d/m/Y H:i' }}</p>
+                            <p class="mt-2 text-sm text-slate-700">{{ consultation.motif }}</p>
+                        </div>
+                        <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{{ consultation.status|capfirst }}</span>
+                    </div>
+                    {% if consultation.reponse_medecin %}
+                    <div class="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-700 shadow-sm">
+                        <p class="font-semibold text-slate-900">Dernière réponse</p>
+                        <p class="mt-2">{{ consultation.reponse_medecin }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune consultation trouvée.</p>
+            {% endif %}
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>

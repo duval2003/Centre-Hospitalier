@@ -1,0 +1,32 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>En-tête</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+     <script src="{% static 'js/code.js' %}"></script>
+     <link href="./output.css" rel="stylesheet">
+</head>
+<body>
+    <header class="border-b border-slate-200 bg-white/90 backdrop-blur">
+        <nav class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+            <a href="{% url 'index' %}" class="flex items-center gap-3">
+                <img src="{% static 'images/hos.png' %}" alt="Logo du centre hospitalier" class="h-10 w-10 rounded-full object-cover shadow-sm">
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Tableau de bord</p>
+                    <p class="text-sm text-slate-500">Centre Hospitalier</p>
+                </div>
+            </a>
+            <div class="flex flex-wrap items-center gap-3">
+                <a href="{% url 'index' %}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-teal-500 hover:text-teal-600">Accueil</a>
+                
+                <a href="{% url 'parametres' %}" title="Paramètres" class="flex items-center text-slate-500 transition hover:text-teal-700" aria-label="Accéder aux paramètres du compte">
+                    <img src="{% static 'images/parametre.png' %}" alt="Icône des paramètres" class="h-5 w-5">
+                </a>
+            </div>
+        </nav>
+    </header>
+</body>
+</html>

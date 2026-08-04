@@ -1,0 +1,362 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Espace patient | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <link href="./output.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] bg-gradient-to-br from-emerald-700 via-teal-600 to-cyan-600 p-8 text-white shadow-2xl">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-100">Espace patient</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Bonjour {{ request.user.prenom|default:request.user.username }} {{ request.user.nom|default:'' }}</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-emerald-50">Accédez rapidement à vos rendez-vous, consultations et dossiers médicaux.</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p class="text-sm text-emerald-100">Rôle</p>
+                    <p class="text-lg font-semibold">Patient</p>
+                </div>
+            </div>
+        </section>
+        
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <form method="get" action="{% url 'hboard' %}" class="flex flex-col gap-3 sm:flex-row">
+                <input type="text" name="q" value="{{ search_results.query|default:'' }}" placeholder="Rechercher un médecin, un patient, un rendez-vous ou une consultation" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Rechercher</button>
+            </form>
+        </section>
+
+        {% if search_results.query %}
+            <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 class="text-xl font-semibold text-slate-900">Résultats de recherche</h2>
+                    <span class="text-sm text-slate-500">« {{ search_results.query }} »</span>
+                </div>
+                {% if search_results.items %}
+                <div class="mt-5 space-y-3">
+                    {% for item in search_results.items %}
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="font-semibold text-slate-900">{{ item.title }}</p>
+                            <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{{ item.type }}</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-600">{{ item.detail }}</p>
+                        {% if item.assignable %}
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <a href="{% url 'view_doctor_planning' item.user_id %}" class="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700">Voir l'emploi du temps</a>
+                            <form method="post" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="doctor_id" value="{{ item.user_id }}">
+                                <button type="submit" class="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Définir comme mon médecin</button>
+                            </form>
+                            <a href="{% url 'chat_with_doctor' item.user_id %}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Ouvrir le chat</a>
+                            <form method="post" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="report_doctor">
+                                <input type="hidden" name="doctor_id" value="{{ item.user_id }}">
+                                <input type="hidden" name="motif" value="Signalement depuis le tableau de bord patient">
+                                <button type="submit" class="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600">Signaler ce médecin</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="mt-4 text-sm text-slate-500">Aucun résultat trouvé pour cette recherche.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        {% if assignation_message %}
+        <section class="mt-6 rounded-[2rem] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+            {{ assignation_message }}
+        </section>
+        {% endif %}
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-600">Médecin traitant</p>
+                    {% if assigned_doctor %}
+                    <p class="mt-2 text-xl font-semibold text-slate-900">Dr {{ assigned_doctor.prenom|default:'' }} {{ assigned_doctor.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600">{{ assigned_doctor.email|default:'Aucune information complémentaire' }}</p>
+                    {% else %}
+                    <p class="mt-2 text-xl font-semibold text-slate-900">Aucun médecin défini</p>
+                    <p class="mt-1 text-sm text-slate-600">Recherchez un médecin puis définissez-le comme votre médecin de référence.</p>
+                    {% endif %}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    {% if assigned_doctor %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove_doctor">
+                        <button type="submit" class="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700">Supprimer ce médecin</button>
+                    </form>
+                    <a href="{% url 'chat_with_doctor' assigned_doctor.pk %}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Ouvrir le chat</a>
+                    <a href="{% url 'patient_consultation' %}" class="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700">Page dédiée consultations</a>
+                    
+                    {% endif %}
+                    <div class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ assigned_doctor.role|default:'Aucun médecin' }}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            {% if assigned_doctor %}
+            <form method="post" action="{% url 'hboard' %}" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="request_rendezvous">
+
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-xl font-semibold text-slate-900">Demander un rendez-vous</h2>
+                </div>
+
+                {% if patient_request_errors %}
+                <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                    <ul class="list-disc pl-5">
+                        {% for error in patient_request_errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if patient_request_message %}
+                <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                    {{ patient_request_message }}
+                </div>
+                {% endif %}
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label for="date_rendez_vous" class="block text-sm font-medium text-slate-700">Date et heure</label>
+                        <input type="datetime-local" id="date_rendez_vous" name="date_rendez_vous" class="mt-1 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">Médecin</label>
+                        <div class="mt-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">Dr {{ assigned_doctor.prenom|default:'' }} {{ assigned_doctor.nom|default:'' }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="motif" class="block text-sm font-medium text-slate-700">Motif du rendez-vous</label>
+                    <textarea id="motif" name="motif" rows="3" class="mt-1 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white" placeholder="Décrivez le motif de votre rendez-vous..."></textarea>
+                </div>
+
+                <button type="submit" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Envoyer la demande</button>
+            </form>
+            {% else %}
+            <div class="rounded-2xl bg-slate-50 p-6 text-sm text-slate-600">
+                <p class="font-semibold text-slate-900">Aucun médecin assigné</p>
+                <p>Vous devez d'abord définir un médecin traitant pour soumettre une consultation.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Mes rendez-vous</h2>
+                <span class="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">{{ patient_rendez_vous }}</span>
+            </div>
+            {% if patient_rendez_vous_list %}
+            <div class="mt-5 space-y-4">
+                {% for rdv in patient_rendez_vous_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="font-semibold text-slate-900">{{ rdv.date_rendez_vous|date:"d/m/Y à H:i" }}</p>
+                    <p class="mt-2 text-sm text-slate-600"><strong>Médecin :</strong> Dr {{ rdv.medecin.prenom|default:'' }} {{ rdv.medecin.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Motif :</strong> {{ rdv.motif }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun rendez-vous demandé pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Vos consultations</h2>
+                <span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ patient_consultations }}</span>
+            </div>
+            {% if patient_consultations_list %}
+            <div class="mt-5 space-y-4">
+                {% for consultation in patient_consultations_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ consultation.date_consultation|date:"d/m/Y à H:i" }} - {{ consultation.get_status_display }}</p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Motif :</strong> {{ consultation.motif }}</p>
+                        </div>
+                    </div>
+                    {% if consultation.reponse_medecin %}
+                    <div class="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-700 border border-slate-200">
+                        <p class="font-semibold text-slate-900">Réponse du médecin</p>
+                        <p class="mt-2">{{ consultation.reponse_medecin }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Vous n’avez pas encore soumis de consultation.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Mes ordonnances</h2>
+                <span class="rounded-full bg-violet-50 px-3 py-1 text-sm font-medium text-violet-700">{{ patient_ordonnances_list.count }}</span>
+            </div>
+            {% if patient_ordonnances_list %}
+            <div class="mt-5 space-y-4">
+                {% for ordonnance in patient_ordonnances_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">
+                                {% for ligne in ordonnance.lignes_ordonnance.all %}
+                                {{ ligne.medicament.nom }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
+                                {{ ordonnance.medicament.nom|default:'Médicament non renseigné' }}
+                                {% endfor %}
+                            </p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Docteur :</strong> Dr {{ ordonnance.medecin.prenom|default:'' }} {{ ordonnance.medecin.nom|default:'' }}</p>
+                            <p class="mt-1 text-sm text-slate-600"><strong>Posologie :</strong> {{ ordonnance.posologie }}</p>
+                            <p class="mt-1 text-sm text-slate-600"><strong>Date :</strong> {{ ordonnance.date_creation|date:"d/m/Y à H:i" }}</p>
+                        </div>
+                        <a href="{% url 'download_ordonnance_pdf' ordonnance.pk %}" class="inline-flex items-center rounded-xl bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
+                            Télécharger PDF
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune ordonnance reçue pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Mes factures</h2>
+                <span class="rounded-full bg-violet-50 px-3 py-1 text-sm font-medium text-violet-700">{{ patient_factures_list.count }}</span>
+            </div>
+            {% if patient_factures_list %}
+            <div class="mt-5 space-y-4">
+                {% for facture in patient_factures_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p class="font-semibold text-slate-900">Facture #{{ facture.pk }}</p>
+                            <p class="mt-2 text-sm text-slate-600"><strong>Montant :</strong> {{ facture.montant_total }} FCFA</p>
+                            <p class="mt-1 text-sm text-slate-600"><strong>Statut :</strong> {{ facture.status }}</p>
+                            <p class="mt-1 text-sm text-slate-600"><strong>Date :</strong> {{ facture.date_facture|date:"d/m/Y à H:i" }}</p>
+                        </div>
+                        {% if facture.status != 'payée' %}
+                        <form method="post" class="w-full max-w-md space-y-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="pay_invoice">
+                            <input type="hidden" name="facture_id" value="{{ facture.pk }}">
+                            <select name="mode_paiement" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" required onchange="togglePaymentDetails(this.value, '{{ facture.pk }}')">
+                                <option value="">Sélectionner un mode de paiement</option>
+                                <option value="Espèces">Espèces</option>
+                                <option value="Carte bancaire">Carte bancaire</option>
+                                <option value="Mobile money">Mobile money / Orange money</option>
+                                <option value="Virement">Virement</option>
+                            </select>
+                            <input type="number" step="0.01" min="0" name="montant" value="{{ facture.montant_total }}" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Montant à payer">
+                            <div id="payment-details-{{ facture.pk }}" class="hidden space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+                                <div data-payment-type="mobile" class="hidden">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Numéro de téléphone</label>
+                                    <input type="text" name="telephone_paiement" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Ex : 691234567">
+                                </div>
+                                <div data-payment-type="card" class="hidden">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Nom sur la carte</label>
+                                    <input type="text" name="nom_carte" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Nom du titulaire">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2 mt-2">Numéro de carte</label>
+                                    <input type="text" name="numero_carte" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="1234 5678 9012 3456">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2 mt-2">Date d’expiration</label>
+                                    <input type="text" name="date_expiration" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="MM/AA">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2 mt-2">Code de sécurité</label>
+                                    <input type="password" name="cvc" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="CVC">
+                                </div>
+                                <div data-payment-type="transfer" class="hidden">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Nom du titulaire du compte</label>
+                                    <input type="text" name="titulaire_virement" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Nom du titulaire">
+                                    <label class="block text-sm font-medium text-slate-700 mb-2 mt-2">Référence / numéro de compte</label>
+                                    <input type="text" name="reference_virement" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Référence du virement">
+                                </div>
+                            </div>
+                            <button type="submit" class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Payer</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucune facture n’a été générée pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="mt-8 grid gap-6 md:grid-cols-3">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Rendez-vous</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ patient_rendez_vous }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Consultations</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ patient_consultations }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Dossiers médicaux</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ patient_dossiers }}</p>
+            </article>
+        </section>
+
+        <section class="mt-8 text-center lg:grid-cols-[1.1fr]">
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-semibold text-slate-900">Vos prochaines étapes</h2>
+                <div class="mt-5 space-y-3 text-sm text-slate-600">
+                    <div class="rounded-2xl bg-slate-50 p-4">• Recevez les confirmations de rendez-vous et les messages du personnel.</div>
+                    <div class="rounded-2xl bg-slate-50 p-4">• Consultez vos antécédents et résultats d’examens en ligne.</div>
+                    <div class="rounded-2xl bg-slate-50 p-4">• Prenez rendez-vous facilement avec les professionnels de santé.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+    <script>
+        function togglePaymentDetails(mode, factureId) {
+            const container = document.getElementById('payment-details-' + factureId);
+            if (!container) return;
+
+            const sections = container.querySelectorAll('[data-payment-type]');
+            sections.forEach((section) => section.classList.add('hidden'));
+
+            if (!mode || mode === 'Espèces') {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            if (mode === 'Mobile money') {
+                container.querySelector('[data-payment-type="mobile"]').classList.remove('hidden');
+            } else if (mode === 'Carte bancaire') {
+                container.querySelector('[data-payment-type="card"]').classList.remove('hidden');
+            } else if (mode === 'Virement') {
+                container.querySelector('[data-payment-type="transfer"]').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

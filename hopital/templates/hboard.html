@@ -1,0 +1,268 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-800 to-teal-700 p-8 text-white shadow-2xl">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-200">Tableau de bord</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Bienvenue, {{ request.user.prenom }} {{ request.user.nom|default:'utilisateur' }}</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-cyan-50">Voici un aperçu rapide de l’activité de votre centre hospitalier et des informations clés à suivre au quotidien.</p>
+                </div>
+                <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p class="text-sm text-cyan-100">Rôle</p>
+                    <p class="text-lg font-semibold">{{ request.user.role|default:'Visiteur' }}</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <form method="get" action="{% url 'hboard' %}" title="saisissez le nom de l'utilisateur" class="flex flex-col gap-3 sm:flex-row">
+                <input type="text" name="q" value="{{ search_results.query|default:'' }}" placeholder="Rechercher un patient, un médecin, une consultation ou une chambre" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-cyan-500 focus:bg-white">
+                <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Rechercher</button>
+            </form>
+        </section>
+
+        {% if search_results.query %}
+        <section class="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 class="text-xl font-semibold text-slate-900">Résultats de recherche</h2>
+                <span class="text-sm text-slate-500">« {{ search_results.query }} »</span>
+            </div>
+            {% if role_update_message %}
+            <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ role_update_message }}</div>
+            {% endif %}
+            {% if search_results.items %}
+            <div class="mt-5 space-y-3">
+                {% for item in search_results.items %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="font-semibold text-slate-900">{{ item.title }}</p>
+                        <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{{ item.type }}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-600">{{ item.detail }}</p>
+                    {% if item.user_id %}
+                    <form method="post" action="{% url 'hboard' %}" class="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="user_id" value="{{ item.user_id }}">
+                        <span class="text-sm font-medium text-slate-700">Rôle actuel : {{ item.current_role_label }}</span>
+                        <select name="new_role" class="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none">
+                            <option value="user" {% if item.current_role == 'user' %}selected{% endif %}>Utilisateur</option>
+                            <option value="medecin" {% if item.current_role == 'medecin' %}selected{% endif %}>Médecin</option>
+                            <option value="secretaire" {% if item.current_role == 'secretaire' %}selected{% endif %}>Secrétaire</option>
+                        </select>
+                        <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Enregistrer</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun résultat trouvé pour cette recherche.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <section class="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Patients</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ stats.patients }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Médecins</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ stats.medecins }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Consultations</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ stats.consultations }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Rendez-vous</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ stats.rendez_vous }}</p>
+            </article>
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-semibold text-slate-500">Chambres</p>
+                <p class="mt-3 text-3xl font-semibold text-slate-900">{{ stats.chambres }}</p>
+            </article>
+        </section>
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Rendez-vous enregistrés</h2>
+                <span class="rounded-full bg-cyan-50 px-3 py-1 text-sm font-medium text-cyan-700">{{ all_rendez_vous_list.count }}</span>
+            </div>
+            {% if all_rendez_vous_list %}
+            <div class="mt-5 space-y-4">
+                {% for rdv in all_rendez_vous_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="font-semibold text-slate-900">{{ rdv.date_rendez_vous|date:"d/m/Y à H:i" }}</p>
+                    <p class="mt-2 text-sm text-slate-600"><strong>Patient :</strong> {{ rdv.patient.prenom|default:'' }} {{ rdv.patient.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Médecin :</strong> Dr {{ rdv.medecin.prenom|default:'' }} {{ rdv.medecin.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Motif :</strong> {{ rdv.motif }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun rendez-vous enregistré.</p>
+            {% endif %}
+        </section>
+
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Stock de medicaments</h2>
+                <span class="rounded-full bg-cyan-50 px-3 py-1 text-sm font-medium text-cyan-700">{{ all_rendez_vous_list.count }}</span>
+            </div>
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+               <a href="{% url 'stock_medicaments' %}" class="rounded-full bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700">Voir le stock</a>
+            </div>
+        </section>
+
+
+
+
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Comptes rendus d’examens</h2>
+                <span class="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">{{ all_exam_results_list.count }}</span>
+            </div>
+            {% if all_exam_results_list %}
+            <div class="mt-5 space-y-4">
+                {% for resultat in all_exam_results_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="font-semibold text-slate-900">{{ resultat.examen.type_examen }}</p>
+                    <p class="mt-2 text-sm text-slate-600"><strong>Patient :</strong> {{ resultat.examen.patient.prenom|default:'' }} {{ resultat.examen.patient.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Médecin :</strong> Dr {{ resultat.examen.medecin.prenom|default:'' }} {{ resultat.examen.medecin.nom|default:'' }}</p>
+                    
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun compte rendu d’examen disponible.</p>
+            {% endif %}
+        </section>
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Ordonnances</h2>
+            </div>
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+               <a href="{% url 'ordonnances_view' %}" class="rounded-full bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700">Voir les ordonnances</a>
+            </div>
+        </section>
+
+        <section class="mt-8 grid gap-6 xl:grid-cols-2">
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-semibold text-slate-900">Patients</h2>
+                {% if admin_patients_list %}
+                <div class="mt-5 space-y-3">
+                    {% for patient in admin_patients_list %}
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        <p class="font-semibold text-slate-900">{{ patient.prenom|default:'' }} {{ patient.nom|default:'' }}</p>
+                        <p>{{ patient.email|default:'Aucun email' }}</p>
+                        <form method="post" action="{% url 'hboard' %}" class="mt-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_patient">
+                            <input type="hidden" name="patient_id" value="{{ patient.pk }}">
+                            <button type="submit" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Supprimer</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="mt-4 text-sm text-slate-500">Aucun patient inscrit.</p>
+                {% endif %}
+            </div>
+
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-semibold text-slate-900">Médecins</h2>
+                {% if admin_medecins_list %}
+                <div class="mt-5 space-y-3">
+                    {% for medecin in admin_medecins_list %}
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        <p class="font-semibold text-slate-900">Dr {{ medecin.prenom|default:'' }} {{ medecin.nom|default:'' }}</p>
+                        <p>{{ medecin.email|default:'Aucun email' }}</p>
+                        <form method="post" action="{% url 'hboard' %}" class="mt-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_doctor">
+                            <input type="hidden" name="doctor_id" value="{{ medecin.pk }}">
+                            <button type="submit" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Supprimer</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="mt-4 text-sm text-slate-500">Aucun médecin enregistré.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="mt-8 grid gap-6 xl:grid-cols-2">
+            <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-semibold text-slate-900">Consultations</h2>
+                {% if admin_consultations_list %}
+                <div class="mt-5 space-y-3">
+                    {% for consultation in admin_consultations_list %}
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        <p class="font-semibold text-slate-900">{{ consultation.date_consultation|date:"d/m/Y à H:i" }}</p>
+                        <p><strong>Patient :</strong> {{ consultation.patient.prenom|default:'' }} {{ consultation.patient.nom|default:'' }}</p>
+                        <p><strong>Médecin :</strong> Dr {{ consultation.medecin.prenom|default:'' }} {{ consultation.medecin.nom|default:'' }}</p>
+                        <p><strong>Motif :</strong> {{ consultation.motif }}</p>
+                        <form method="post" action="{% url 'hboard' %}" class="mt-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_consultation">
+                            <input type="hidden" name="consultation_id" value="{{ consultation.pk }}">
+                            <button type="submit" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Supprimer</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="mt-4 text-sm text-slate-500">Aucune consultation enregistrée.</p>
+                {% endif %}
+            </div>
+        </section>    
+
+        <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold text-slate-900">Rendez-vous administrateurs</h2>
+                <span class="rounded-full bg-cyan-50 px-3 py-1 text-sm font-medium text-cyan-700">{{ admin_rendez_vous_list.count }}</span>
+            </div>
+            {% if admin_rendez_vous_list %}
+            <div class="mt-5 space-y-4">
+                {% for rdv in admin_rendez_vous_list %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="font-semibold text-slate-900">{{ rdv.date_rendez_vous|date:"d/m/Y à H:i" }}</p>
+                    <p class="mt-2 text-sm text-slate-600"><strong>Patient :</strong> {{ rdv.patient.prenom|default:'' }} {{ rdv.patient.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Médecin :</strong> Dr {{ rdv.medecin.prenom|default:'' }} {{ rdv.medecin.nom|default:'' }}</p>
+                    <p class="mt-1 text-sm text-slate-600"><strong>Motif :</strong> {{ rdv.motif }}</p>
+                    <form method="post" action="{% url 'hboard' %}" class="mt-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_rendezvous">
+                        <input type="hidden" name="rendezvous_id" value="{{ rdv.pk }}">
+                        <button type="submit" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Supprimer</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-4 text-sm text-slate-500">Aucun rendez-vous enregistré.</p>
+            {% endif %}
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>

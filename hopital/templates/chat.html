@@ -1,0 +1,49 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversation | Centre Hospitalier</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+
+    <main class="mx-auto max-w-4xl px-6 py-10 lg:px-8">
+        <section class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-600">Chat</p>
+                    <h1 class="mt-2 text-2xl font-semibold text-slate-900">Conversation avec {% if doctor %}Dr {{ doctor.prenom|default:'' }} {{ doctor.nom|default:'' }}{% else %}ce médecin{% endif %}</h1>
+                </div>
+                <a href="{% url 'hboard' %}" class="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">Retour au tableau de bord</a>
+            </div>
+
+            {% if doctor %}
+            <div class="mt-6 space-y-3 rounded-2xl bg-slate-50 p-4">
+                {% for message in messages %}
+                <div class="rounded-2xl {% if message.sender == request.user %}bg-cyan-600 text-white{% else %}bg-white text-slate-700{% endif %} p-3 shadow-sm">
+                    <p class="text-sm">{{ message.content }}</p>
+                    <p class="mt-2 text-xs {% if message.sender == request.user %}text-cyan-100{% else %}text-slate-400{% endif %}">{{ message.created_at }}</p>
+                </div>
+                {% empty %}
+                <p class="text-sm text-slate-500">Aucun message encore. Envoyer un message pour commencer la conversation.</p>
+                {% endfor %}
+            </div>
+
+            <form method="post" class="mt-6 flex flex-col gap-3 sm:flex-row">
+                {% csrf_token %}
+                <input type="text" name="content" placeholder="Envoyer un message" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-cyan-500" required>
+                <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Envoyer</button>
+            </form>
+            {% else %}
+            <p class="mt-6 text-sm text-slate-500">Ce médecin n’est pas disponible pour le moment.</p>
+            {% endif %}
+        </section>
+    </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>
