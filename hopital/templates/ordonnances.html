@@ -56,6 +56,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% include 'pagination.html' with page_obj=ordonnances extra_query=extra_query_ordonnances page_param=page_param_ordonnances %}
             {% else %}
             <p class="mt-4 text-sm text-slate-500">Aucune ordonnance enregistrée.</p>
             {% endif %}

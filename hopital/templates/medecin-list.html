@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planning médecin | Centre Hospitalier</title>
+    <title>Liste des médecins | Centre Hospitalier</title>
     <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="./output.css" rel="stylesheet">
@@ -25,27 +25,21 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <p class="text-sm font-semibold uppercase tracking-[0.35em] text-blue-100">Agenda</p>
-                    <h1 class="mt-2 text-3xl font-semibold">Gestion de mon Emploi de temps</h1>
-                    <p class="mt-2 max-w-2xl text-sm text-blue-50">Votre temps au service de la santé : planifiez en toute simplicité.</p>
-                    <p class="mt-2 max-w-2xl text-sm text-blue-50">Un agenda structuré pour des soins de qualité.</p>
+                    <h1 class="mt-2 text-3xl font-semibold">Liste des médecins</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-blue-50">Découvrez notre équipe de professionnels de santé.</p>
+                    <p class="mt-2 max-w-2xl text-sm text-blue-50">Utilisez cet agenda pour contacter nos médecins et planifier vos rendez-vous.</p>
                 </div>
                 <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
                     <p class="text-sm text-blue-100">Agenda</p>
                 </div>
             </div>
-        </section>
+        </section><br>
         {% block content %}
             <div class="space-y-6">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-xl font-bold text-slate-800">Registre des Médecins</h1>
-                        <p class="text-xs text-slate-400 mt-0.5">Consulter la liste de nos spécialistes médicaux et configurer leurs créneaux de travail.</p>
-                    </div>
-                </div>
 
                 <!-- Doctors Cards Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {% for med in medecins %}
+                    {% for med in doctors %}
                     <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-200">
                         <!-- Header Card (Doctor Background) -->
                         <div class="h-20 bg-gradient-to-r from-hospital-900 to-hospital-700 relative">
@@ -63,29 +57,42 @@
                             
                             <div class="mt-10 space-y-4 flex-1 flex flex-col">
                                 <div>
-                                    <h3 class="font-bold text-slate-800 text-base leading-snug">{{ med }}</h3>
+                                    <h3 class="font-bold text-slate-800 text-base leading-snug">{{ med.prenom }} {{ med.nom }}</h3>
                                     <span class="text-xs text-hospital-600 font-semibold bg-hospital-50 border border-hospital-100 px-2.5 py-0.5 rounded-full inline-block mt-1">{{ med.specialite }}</span>
                                 </div>
                                 
-                                {% if med.bio %}
-                                <p class="text-xs text-slate-500 leading-relaxed italic flex-1">{{ med.bio }}</p>
-                                {% else %}
-                                <p class="text-xs text-slate-400 leading-relaxed italic flex-1">Aucune description disponible pour ce médecin.</p>
-                                {% endif %}
+                                <div class="flex-1 space-y-2 text-xs text-slate-500">
+                                    <p><span class="font-semibold text-slate-700">Adresse :</span> {{ med.adresse|default:"Non renseignée" }}</p>
+                                    <p><span class="font-semibold text-slate-700">Langues :</span> {{ med.langues|default:"Non renseignées" }}</p>
+                                </div>
                                 
                                 <!-- Contact Info -->
                                 <div class="pt-4 border-t border-slate-100 space-y-2 text-xs text-slate-500">
-                                    <p class="flex items-center"><i class="fa-solid fa-phone text-slate-300 w-5"></i> {{ med.telephone }}</p>
-                                    <p class="flex items-center"><i class="fa-regular fa-envelope text-slate-300 w-5"></i> {{ med.user.email|default:"contact@santeplus.fr" }}</p>
+                                    <p class="flex items-center"><i class="fa-solid fa-phone text-slate-300 w-5"></i> {{ med.telephone|default:"Téléphone non renseigné" }}</p>
+                                    <p class="flex items-center"><i class="fa-regular fa-envelope text-slate-300 w-5"></i> {{ med.email|default:"contact@santeplus.fr" }}</p>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Footer Card Actions -->
                         <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                            <a href="{% url 'medecin_planning' %}" class="w-full text-center px-4 py-2 bg-white hover:bg-hospital-50 text-slate-700 hover:text-hospital-600 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center shadow-sm">
-                                <i class="fa-regular fa-calendar-alt mr-2 text-slate-400"></i> Gérer l'emploi du temps
-                            </a>
+                            {% if med.is_user %}
+                            <div class="flex w-full flex-col gap-2 sm:flex-row">
+                                <a href="{% url 'view_doctor_planning' med.id %}" class="w-full text-center px-4 py-2 bg-white hover:bg-hospital-50 text-slate-700 hover:text-hospital-600 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center shadow-sm">
+                                    <i class="fa-regular fa-calendar-alt mr-2 text-slate-400"></i> Voir l'emploi du temps
+                                </a>
+                                {% if request.user.role == 'admin' %}
+                                <form method="post" action="{% url 'hboard' %}" class="w-full" onsubmit="return confirm('Supprimer ce compte médecin ?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_doctor">
+                                    <input type="hidden" name="doctor_id" value="{{ med.id }}">
+                                    <button type="submit" class="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100">Supprimer</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <button disabled class="w-full text-center px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl text-xs font-bold">Planning non disponible</button>
+                            {% endif %}
                         </div>
                     </div>
                     {% empty %}

@@ -1,0 +1,20 @@
+{% if page_obj.has_other_pages %}
+<div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-500">
+    <div>Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}</div>
+    <div class="flex flex-wrap items-center gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?{% if extra_query %}{{ extra_query }}&{% endif %}{{ page_param }}={{ page_obj.previous_page_number }}{% if section_id %}#{{ section_id }}{% endif %}" class="rounded-full border border-slate-300 bg-white px-3 py-2 text-slate-700 transition hover:bg-slate-100">Précédent</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if num == page_obj.number %}
+            <span class="rounded-full border border-slate-300 bg-slate-900 px-3 py-2 text-white">{{ num }}</span>
+            {% else %}
+            <a href="?{% if extra_query %}{{ extra_query }}&{% endif %}{{ page_param }}={{ num }}{% if section_id %}#{{ section_id }}{% endif %}" class="rounded-full border border-slate-300 bg-white px-3 py-2 text-slate-700 transition hover:bg-slate-100">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?{% if extra_query %}{{ extra_query }}&{% endif %}{{ page_param }}={{ page_obj.next_page_number }}{% if section_id %}#{{ section_id }}{% endif %}" class="rounded-full border border-slate-300 bg-white px-3 py-2 text-slate-700 transition hover:bg-slate-100">Suivant</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

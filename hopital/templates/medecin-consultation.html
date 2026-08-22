@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="./output.css" rel="stylesheet">
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-800">
+<body class="doctor-consultation-page min-h-screen bg-slate-50 text-slate-800">
     {% include 'header.html' %}
 
     <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
@@ -80,7 +80,7 @@
                                     <option value="rejected">Rejeté</option>
                                 </select>
                             </div>
-                            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                            <div class="consultation-signal-box rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                                 <label class="inline-flex items-center gap-2">
                                     <input type="checkbox" name="signal_as_harassment" class="rounded text-rose-600 focus:ring-rose-500">
                                     <span>Signaler cette demande comme harcèlement</span>
@@ -93,6 +93,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% include 'pagination.html' with page_obj=pending_consultations extra_query=extra_query_pending_consultations page_param=page_param_pending_consultations %}
             {% else %}
             <p class="mt-4 text-sm text-slate-500">Aucune nouvelle demande de consultation en attente.</p>
             {% endif %}
@@ -132,6 +133,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% include 'pagination.html' with page_obj=all_consultations extra_query=extra_query_all_consultations page_param=page_param_all_consultations %}
             {% else %}
             <p class="mt-4 text-sm text-slate-500">Aucune consultation trouvée.</p>
             {% endif %}

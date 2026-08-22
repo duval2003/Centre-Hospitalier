@@ -152,6 +152,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% include 'pagination.html' with page_obj=patient_consultations extra_query=extra_query_patient_consultations page_param=page_param_patient_consultations %}
             {% else %}
             <p class="mt-4 text-sm text-slate-500">Aucune consultation enregistrée pour le moment.</p>
             {% endif %}

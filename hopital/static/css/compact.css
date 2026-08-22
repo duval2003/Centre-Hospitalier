@@ -1,0 +1,56 @@
+/*:root{
+  --compact-space: 0.5rem;
+  --compact-space-lg: 1rem;
+  --compact-radius: .75rem;
+}
+
+/* Reduce global spacing and typography scale to save vertical space */
+/* html,body{font-size:95%;line-height:1.25;color:#0f172a;background:#f8fafc} */
+/* body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial} */
+
+/* Header / nav compact */
+/* header nav{padding:.5rem 1rem;gap:.5rem} */
+/* header img{height:36px;width:36px} */
+/* header p{margin:0} */
+/* header .text-lg{font-size:1rem} */
+
+/* Reduce button padding and rounded sizes */
+/* .rounded-full{padding:.35rem .75rem} */
+/* .px-4{padding-left:.6rem;padding-right:.6rem} */
+/* .py-2{padding-top:.35rem;padding-bottom:.35rem} */
+
+/* Tighten main and section spacing */
+/* main{padding:1rem} */
+/* section{padding:.75rem;border-radius:var(--compact-radius)} */
+/* .mt-10{margin-top:.6rem} */
+/* .py-16{padding-top:1rem;padding-bottom:1rem} */
+
+/* Carousel: reduce height on smaller screens */
+/* .h-96{height:20rem} */
+/* .p-6{padding:.6rem} */
+
+/* Cards and articles */
+/* .rounded-3xl{border-radius:1rem} */
+/* .p-8{padding:.8rem} */
+
+/* Footer compact */
+/* footer{padding:.75rem 1rem;font-size:.92rem} */
+/* footer .px-6{padding-left:1rem;padding-right:1rem} */
+
+/* Utility overrides to keep things compact */
+/* .max-w-7xl{max-width:1100px} */
+/* .max-w-4xl{max-width:900px} */
+/* .text-4xl{font-size:1.6rem} */
+/* .text-3xl{font-size:1.25rem} */
+/* .text-2xl{font-size:1.05rem} */
+
+/* Inputs & toggles */
+/* input,button,a{line-height:1.1} */
+
+/* Keep images dense */
+/* img{display:block;max-width:100%} */
+
+/* @media (min-width:768px){ */
+  /* header nav{padding:.5rem 1.25rem} */
+  /* .h-96{height:18rem} */
+/* } */

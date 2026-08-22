@@ -82,6 +82,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% include 'pagination.html' with page_obj=medicaments extra_query=extra_query_medicaments page_param=page_param_medicaments %}
             {% else %}
             <p class="mt-4 text-sm text-slate-500">Aucun médicament en stock.</p>
             {% endif %}

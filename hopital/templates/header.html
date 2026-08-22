@@ -1,32 +1,142 @@
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>En-tête</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-     <script src="{% static 'js/code.js' %}"></script>
-     <link href="./output.css" rel="stylesheet">
-</head>
-<body>
-    <header class="border-b border-slate-200 bg-white/90 backdrop-blur">
-        <nav class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
-            <a href="{% url 'index' %}" class="flex items-center gap-3">
-                <img src="{% static 'images/hos.png' %}" alt="Logo du centre hospitalier" class="h-10 w-10 rounded-full object-cover shadow-sm">
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">Tableau de bord</p>
-                    <p class="text-sm text-slate-500">Centre Hospitalier</p>
-                </div>
-            </a>
-            <div class="flex flex-wrap items-center gap-3">
-                <a href="{% url 'index' %}" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-teal-500 hover:text-teal-600">Accueil</a>
-                
-                <a href="{% url 'parametres' %}" title="Paramètres" class="flex items-center text-slate-500 transition hover:text-teal-700" aria-label="Accéder aux paramètres du compte">
-                    <img src="{% static 'images/parametre.png' %}" alt="Icône des paramètres" class="h-5 w-5">
-                </a>
+<button class="app-sidebar-toggle" type="button" aria-label="Ouvrir le menu" aria-controls="app-sidebar" aria-expanded="false" data-app-sidebar-toggle>☰</button>
+<aside class="app-sidebar" id="app-sidebar" data-app-sidebar>
+    <a href="{% url 'parametres' %}" class="sidebar-profile">
+        {% if request.user.photo_profil %}
+            <img src="{{ request.user.photo_profil.url }}" alt="Photo de {{ request.user.prenom|default:request.user.username }}">
+        {% else %}
+            <span class="sidebar-profile-fallback">{{ request.user.prenom|default:request.user.username|first|upper }}</span>
+        {% endif %}
+        <span class="sidebar-profile-info"><strong>{{ request.user.prenom|default:'' }} {{ request.user.nom|default:'' }}</strong><small>{{ request.user.get_role_display|default:'Utilisateur' }}</small></span>
+    </a>
+    <nav class="app-sidebar-nav" aria-label="Navigation principale">
+        <p class="app-nav-label">Menu principal</p>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'hboard' %}is-active{% endif %}" href="{% url 'hboard' %}"><span aria-hidden="true">▦</span>Dashboard</a>
+        <a class="app-nav-link chat-nav-link {% if request.resolver_match.url_name == 'chat_inbox' or request.resolver_match.url_name == 'chat_with_doctor' %}is-active{% endif %}" href="{% url 'chat_inbox' %}"><span class="chat-icon" aria-hidden="true">✉</span><span class="app-nav-link-label">Chat</span>{% if unread_chat_count %}<strong class="chat-unread-badge" aria-label="{{ unread_chat_count }} message(s) non lu(s)">{% if unread_chat_count > 99 %}99+{% else %}{{ unread_chat_count }}{% endif %}</strong>{% endif %}</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'medecin-list' %}is-active{% endif %}" href="{% url 'medecin-list' %}"><span aria-hidden="true">♙</span>Médecins</a>
+        {% if request.user.role == 'admin' or request.user.role == 'secretaire' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'staff_patients' %}is-active{% endif %}" href="{% url 'staff_patients' %}"><span aria-hidden="true">♙</span>Patients</a>
+        {% endif %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'patient_consultation' or request.resolver_match.url_name == 'medecin_consultation' or request.resolver_match.url_name == 'staff_consultations' %}is-active{% endif %}" href="{% if request.user.role == 'medecin' %}{% url 'medecin_consultation' %}{% elif request.user.role == 'user' or request.user.role == 'patient' %}{% url 'patient_consultation' %}{% else %}{% url 'staff_consultations' %}{% endif %}"><span aria-hidden="true">◫</span>Consultations</a>
+        {% if request.user.role == 'user' or request.user.role == 'patient' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'patient_rendez_vous' %}is-active{% endif %}" href="{% url 'patient_rendez_vous' %}"><span aria-hidden="true">◷</span>Mes rendez-vous</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'patient_ordonnances' %}is-active{% endif %}" href="{% url 'patient_ordonnances' %}"><span aria-hidden="true">▤</span>Mes ordonnances</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'patient_factures' %}is-active{% endif %}" href="{% url 'patient_factures' %}"><span aria-hidden="true">₣</span>Mes factures</a>
+        {% endif %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'medecin_planning' %}is-active{% endif %}" href="{% if request.user.role == 'medecin' %}{% url 'medecin_planning' %}{% else %}{% url 'medecin-list' %}{% endif %}"><span aria-hidden="true">◷</span>Mon planning</a>
+        {% if request.user.role == 'medecin' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'medecin_patients' %}is-active{% endif %}" href="{% url 'medecin_patients' %}"><span aria-hidden="true">♙</span>Mes patients</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'medecin_rendez_vous' %}is-active{% endif %}" href="{% url 'medecin_rendez_vous' %}"><span aria-hidden="true">◷</span>Mes rendez-vous</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'medecin_ordonnances' %}is-active{% endif %}" href="{% url 'medecin_ordonnances' %}"><span aria-hidden="true">▤</span>Mes ordonnances prescrites</a>
+        {% endif %}
+        {% if request.user.role == 'medecin' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'medecin_exam_reports' %}is-active{% endif %}" href="{% url 'medecin_exam_reports' %}"><span aria-hidden="true">▤</span>Mes comptes rendus</a>
+        {% endif %}
+        {% if request.user.role == 'admin' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'ordonnances_view' %}is-active{% endif %}" href="{% url 'ordonnances_view' %}"><span aria-hidden="true">▤</span>Ordonnances</a>
+        {% endif %}
+        {% if request.user.role == 'secretaire' %} 
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'secretaire_ordonnances' %}is-active{% endif %}" href="{% url 'secretaire_ordonnances' %}"><span aria-hidden="true">▤</span>Ordonnances</a>
+        {% endif %}
+        {% if request.user.role == 'admin' or request.user.role == 'secretaire' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'staff_rendez_vous' %}is-active{% endif %}" href="{% url 'staff_rendez_vous' %}"><span aria-hidden="true">◷</span>Rendez-vous</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'staff_exam_reports' %}is-active{% endif %}" href="{% url 'staff_exam_reports' %}"><span aria-hidden="true">▤</span>Comptes rendus</a>
+        {% endif %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'stock_medicaments' %}is-active{% endif %}" href="{% url 'stock_medicaments' %}"><span aria-hidden="true">⌁</span>Médicaments</a>
+        {% if request.user.role == 'secretaire' %}
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'secretaire_gestion_hospitaliere' %}is-active{% endif %}" href="{% url 'secretaire_gestion_hospitaliere' %}"><span aria-hidden="true">▣</span>Gestion hospitalière</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'secretaire_factures' %}is-active{% endif %}" href="{% url 'secretaire_factures' %}"><span aria-hidden="true">₣</span>Factures et paiements</a>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'secretaire_hospitalisations_en_cours' %}is-active{% endif %}" href="{% url 'secretaire_hospitalisations_en_cours' %}"><span aria-hidden="true">▤</span>Hospitalisations en cours</a>
+        {% endif %}
+        <p class="app-nav-label app-nav-label-spaced">Compte</p>
+        <a class="app-nav-link {% if request.resolver_match.url_name == 'parametres' %}is-active{% endif %}" href="{% url 'parametres' %}"><span aria-hidden="true">⚙</span>Paramètres</a>
+        <a class="app-nav-link" href="{% url 'index' %}"><span aria-hidden="true">⌂</span>Accueil</a>
+    </nav>
+    <div class="app-sidebar-footer"><span></span>Système opérationnel</div>
+</aside>
+<div id="incoming-video-call" class="incoming-video-call" hidden role="alertdialog" aria-live="assertive" aria-label="Appel vidéo entrant">
+    <div class="incoming-video-call-card">
+        <strong>Appel vidéo entrant</strong>
+        <p id="incoming-video-caller"></p>
+        <div class="incoming-video-call-actions">
+            <button id="accept-incoming-video-call" type="button">Répondre</button>
+            <button id="decline-incoming-video-call" type="button">Refuser</button>
+        </div>
+    </div>
+</div>
+<header class="app-header">
+    <nav class="app-header-nav">
+        <a href="{% url 'hboard' %}" class="app-header-brand">
+            <img src="{% static 'images/hos.png' %}" alt="Logo HosPital" class="app-header-logo">
+            <span><strong>HosPital</strong><small>Centre hospitalier</small></span>
+        </a>
+        <div class="search-box">
+                <form method="get" action="{% url 'hboard' %}" title="saisissez le nom de l'utilisateur" class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="relative w-full">
+                        <input type="text" name="q" value="{{ search_results.query|default:'' }}" placeholder="Rechercher un patient, un médecin, une consultation ou une chambre" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 shadow-inner outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-4 focus:ring-cyan-100">
+                    </div>
+                    <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700">Rechercher</button>
+                </form>
             </div>
-        </nav>
-    </header>
-</body>
-</html>
+        <div class="app-header-actions">
+            <div class="theme-switcher" role="group" aria-label="Choisir le thème">
+                <button type="button" class="theme-button" data-theme-choice="light" aria-label="Activer le thème clair" title="Thème clair">☀</button>
+                <button type="button" class="theme-button" data-theme-choice="dark" aria-label="Activer le thème sombre" title="Thème sombre">☾</button>
+            </div>
+        </div>
+    </nav>
+</header>
+<script src="{% static 'JS/code.js' %}"></script>
+<script>
+    (() => {
+        const notification = document.getElementById('incoming-video-call');
+        if (!notification) return;
+        const caller = document.getElementById('incoming-video-caller');
+        const accept = document.getElementById('accept-incoming-video-call');
+        const decline = document.getElementById('decline-incoming-video-call');
+        let invitation = null;
+        let checking = false;
+
+        async function checkVideoInvitations() {
+            if (checking || invitation) return;
+            checking = true;
+            try {
+                const response = await fetch('{% url "video_call_invitations" %}', {headers: {'Accept': 'application/json'}});
+                const data = await response.json();
+                invitation = data.invitations?.[0] || null;
+                if (invitation) {
+                    caller.textContent = `${invitation.caller} vous invite à rejoindre un appel vidéo.`;
+                    notification.hidden = false;
+                }
+            } finally {
+                checking = false;
+            }
+        }
+
+        accept.addEventListener('click', async () => {
+            if (!invitation) return;
+            accept.disabled = true;
+            const response = await fetch(invitation.action_url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''},
+                body: JSON.stringify({action: 'accept'}),
+            });
+            if (response.ok) window.location.href = invitation.url;
+            accept.disabled = false;
+        });
+
+        decline.addEventListener('click', async () => {
+            if (!invitation) return;
+            await fetch(invitation.action_url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''},
+                body: JSON.stringify({action: 'decline'}),
+            });
+            invitation = null;
+            notification.hidden = true;
+        });
+
+        checkVideoInvitations();
+        window.setInterval(checkVideoInvitations, 2000);
+    })();
+</script>

@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complétez votre profil médecin | Centre Hospitalier</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <link href="./output.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+    <main class="mx-auto max-w-2xl px-6 py-10 lg:px-8">
+        <section class="rounded-[1rem] bg-white p-6 shadow-sm">
+            <h1 class="text-xl font-semibold">Complétez votre profil médecin</h1>
+            <p class="text-sm text-slate-500 mt-2">Ces informations permettront aux patients de mieux vous connaître.</p>
+
+            {% if message %}
+            <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{{ message }}</div>
+            {% endif %}
+            {% if errors %}
+            <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <ul>
+                    {% for e in errors %}
+                    <li>{{ e }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <form method="post" class="mt-6">
+                {% csrf_token %}
+                <label class="block text-sm font-medium text-slate-700">Adresse</label>
+                <input type="text" name="adresse" value="{{ medecin.adresse }}" required class="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none">
+                <label class="mt-4 block text-sm font-medium text-slate-700">Spécialité</label>
+                <input type="text" name="specialite" value="{{ medecin.specialite }}" class="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none">
+                <label class="mt-4 block text-sm font-medium text-slate-700">Langues parlées</label>
+                <input type="text" name="langues" value="{{ medecin.langues }}" placeholder="Ex. Français, Anglais" required class="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none">
+                <div class="mt-4">
+                    <button type="submit" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white">Enregistrer mon profil</button>
+                </div>
+                <a href="{% url 'hboard' %}" class="inline-flex items-center gap-2 text-white hover:text-sky-400 font-semibold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Retour au tableau de bord
+                </a>
+            </form>
+        </section>
+    </main>
+    {% include 'footer.html' %}
+</body>
+</html>

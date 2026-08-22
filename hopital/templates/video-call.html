@@ -1,0 +1,291 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appel vidéo | Centre Hospitalier</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+        body { margin: 0; min-height: 100vh; background: #07131f; color: #f8fafc; }
+        .call-shell { min-height: 100vh; display: flex; flex-direction: column; }
+        .call-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem; background: #0c2130; }
+        .call-header a, .control { color: #f8fafc; border: 1px solid #315269; background: #173448; border-radius: .75rem; padding: .65rem .9rem; text-decoration: none; cursor: pointer; }
+        #status { color: #9cc9d8; font-size: .9rem; }
+        .video-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; padding: 1rem; align-content: center; }
+        .video-tile { position: relative; min-height: 220px; overflow: hidden; border-radius: 1rem; background: #102536; border: 1px solid #24465b; }
+        video { width: 100%; height: 100%; min-height: 220px; display: block; object-fit: cover; background: #102536; }
+        .video-tile span { position: absolute; left: .75rem; bottom: .65rem; padding: .3rem .5rem; border-radius: .5rem; background: #07131fcc; font-size: .85rem; }
+        .controls { display: flex; justify-content: center; gap: .75rem; padding: 1rem; background: #0c2130; }
+        .call-controls { position: fixed; right: 0; bottom: 0; left: 0; z-index: 10; flex-wrap: wrap; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+        .mic-control { display: inline-flex; align-items: center; gap: .45rem; }
+        .mic-icon { display: inline-flex; width: 1.35rem; height: 1.35rem; align-items: center; justify-content: center; border: 1px solid currentColor; border-radius: 50%; font-size: .9rem; line-height: 1; }
+        .mic-control.is-muted { background: #7f1d1d; border-color: #f87171; }
+        .sound-control.is-enabled { background: #166534; border-color: #86efac; }
+        .sound-control.is-muted { background: #7f1d1d; border-color: #f87171; }
+        .speaker-icon { display: inline-flex; width: 1.35rem; height: 1.35rem; align-items: center; justify-content: center; border: 1px solid currentColor; border-radius: 50%; font-size: .9rem; line-height: 1; }
+        .danger-control { background: #b4233c; border-color: #ef7183; }
+        .call-dialog { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1rem; background: #020812cc; }
+        .call-dialog[hidden] { display: none; }
+        .dialog-card { width: min(480px, 100%); padding: 1.5rem; border: 1px solid #315269; border-radius: 1rem; background: #102536; }
+        .dialog-card label { display: flex; gap: .65rem; align-items: center; padding: .65rem; border-radius: .65rem; background: #173448; }
+        body.portrait .video-grid { max-width: 480px; width: 100%; margin: auto; grid-template-columns: 1fr; }
+        body.portrait .video-tile { aspect-ratio: 9 / 16; min-height: 0; }
+        body.portrait video { min-height: 0; }
+        @media (max-width: 600px) { .call-header { padding: .8rem; } .call-header h1 { font-size: 1rem; } .video-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body data-user-id="{{ current_user.pk }}" data-room="{{ call.room_id }}">
+    <div class="call-shell">
+        <input id="csrf-token" type="hidden" value="{{ csrf_token }}">
+        <header class="call-header">
+            <div><h1>Appel vidéo</h1><span id="status">Connexion à la salle...</span></div>
+            <div><button id="copy-link" class="control" type="button">Copier le lien</button><a href="{% url 'hboard' %}">Quitter</a></div>
+        </header>
+        {% if not call_accepted %}
+        <div id="incoming-call-dialog" class="call-dialog">
+            <div class="dialog-card">
+                <h2>Appel vidéo entrant</h2>
+                <p id="caller-name">{{ call.created_by }} vous invite à rejoindre cet appel.</p>
+                <div class="controls" style="padding: 1rem 0 0; background: transparent;">
+                    <button id="accept-call" class="control" type="button">Répondre</button>
+                    <button id="decline-call" class="control danger-control" type="button">Refuser</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <main id="video-grid" class="video-grid">
+            <div class="video-tile" data-video-id="local"><video id="local-video" autoplay muted playsinline></video><span>Vous</span></div>
+        </main>
+        <nav class="controls call-controls" aria-label="Contrôles de l’appel">
+            <button id="toggle-mic" class="control mic-control" type="button"><span class="mic-icon" aria-hidden="true">&#127908;</span><span id="mic-label">Micro activé</span></button>
+            <button id="toggle-camera" class="control" type="button">Caméra activée</button>
+            <button id="toggle-portrait" class="control" type="button">Portrait</button>
+            <button id="toggle-fullscreen" class="control" type="button">Plein écran</button>
+            <button id="enable-sound" class="control sound-control is-enabled" type="button" aria-pressed="true"><span class="speaker-icon" aria-hidden="true">&#128266;</span><span id="sound-label">Haut-parleur activé</span></button>
+            <button id="add-participant" class="control" type="button">Ajouter un participant</button>
+            <button id="hang-up" class="control danger-control" type="button">Raccrocher</button>
+        </nav>
+    </div>
+    <div id="participant-dialog" class="call-dialog" hidden>
+        <div class="dialog-card">
+            <h2>Ajouter un participant</h2>
+            <div id="available-users" style="display:grid;gap:.5rem;margin-top:1rem;">
+                {% for user in available_users %}<label><input type="checkbox" value="{{ user.pk }}"> <span>{{ user }} ({{ user.get_role_display }})</span></label>{% empty %}<p>Aucun utilisateur disponible.</p>{% endfor %}
+            </div>
+            <div class="controls" style="padding: 1rem 0 0; background: transparent;">
+                <button id="confirm-add-participant" class="control" type="button">Inviter</button>
+                <button id="cancel-add-participant" class="control" type="button">Annuler</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const userId = Number(document.body.dataset.userId);
+        const room = document.body.dataset.room;
+        const grid = document.getElementById('video-grid');
+        const status = document.getElementById('status');
+        const csrfToken = document.getElementById('csrf-token').value || getCookie('csrftoken');
+        const peers = new Map();
+        const pendingCandidates = new Map();
+        const names = new Map();
+        const remoteMedia = new Map();
+        let localStream;
+        let lastSignal = 0;
+        let audioUnlocked = false;
+        let soundEnabled = true;
+        let accepted = {{ call_accepted|yesno:'true,false' }};
+
+        function getCookie(name) {
+            return document.cookie.split('; ').find(row => row.startsWith(name + '='))?.split('=')[1] || '';
+        }
+        function api(path, options = {}) { return fetch(path, {...options, headers: {...options.headers, 'X-CSRFToken': csrfToken}}).then(response => response.json().then(data => ({response, data}))); }
+        function signalUrl() { return '{% url "video_call_signals" call.room_id %}'; }
+        async function sendSignal(recipientId, type, payload) {
+            await api(signalUrl(), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({recipient_id: recipientId, type, payload})});
+        }
+        function addTile(id, name, stream) {
+            let tile = document.querySelector(`[data-video-id="${id}"]`);
+            if (!tile) {
+                tile = document.createElement('div'); tile.className = 'video-tile'; tile.dataset.videoId = id;
+                const video = document.createElement('video'); video.autoplay = true; video.playsInline = true; video.muted = true;
+                const label = document.createElement('span'); label.textContent = name;
+                tile.append(video, label); grid.appendChild(tile);
+            }
+            const video = tile.querySelector('video');
+            video.muted = true;
+            video.srcObject = stream;
+            video.play().catch(() => { status.textContent = 'Cliquez sur la page pour activer le son.'; });
+            let audio = remoteMedia.get(id);
+            if (!audio) {
+                audio = document.createElement('audio');
+                audio.autoplay = true;
+                audio.controls = false;
+                audio.muted = false;
+                audio.volume = 1;
+                audio.dataset.audioId = id;
+                document.body.appendChild(audio);
+                remoteMedia.set(id, audio);
+            }
+            audio.srcObject = stream;
+            audio.muted = !soundEnabled;
+            audio.volume = soundEnabled ? 1 : 0;
+            audio.play().catch(() => { status.textContent = 'Cliquez sur « Activer le son » pour entendre les participants.'; });
+            if (audioUnlocked) unlockAudio();
+        }
+
+        async function unlockAudio() {
+            audioUnlocked = true;
+            for (const audio of remoteMedia.values()) {
+                audio.muted = !soundEnabled;
+                audio.volume = soundEnabled ? 1 : 0;
+                await audio.play().catch(() => {});
+            }
+        }
+        async function makePeer(remoteId, remoteName) {
+            if (peers.has(remoteId)) return peers.get(remoteId);
+            names.set(remoteId, remoteName);
+            const peer = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+            const audioTrack = localStream.getAudioTracks()[0];
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (audioTrack) peer.addTrack(audioTrack, localStream);
+            if (videoTrack) peer.addTrack(videoTrack, localStream);
+            console.log('Flux local envoyé à', remoteId, {audio: Boolean(audioTrack), video: Boolean(videoTrack)});
+            const remoteStream = new MediaStream();
+            peer.ontrack = event => {
+                console.log('Piste distante reçue', {
+                    from: remoteId,
+                    streams: event.streams,
+                    kind: event.track.kind,
+                    enabled: event.track.enabled,
+                    audioTracks: remoteStream.getAudioTracks(),
+                });
+                remoteStream.addTrack(event.track);
+                console.log('Pistes audio distantes après ajout', remoteStream.getAudioTracks());
+                addTile(remoteId, remoteName, remoteStream);
+            };
+            peer.onicecandidate = event => { if (event.candidate) sendSignal(remoteId, 'candidate', event.candidate.toJSON()); };
+            peer.onconnectionstatechange = () => console.log('État connexion WebRTC', remoteId, peer.connectionState);
+            peer.oniceconnectionstatechange = () => console.log('État ICE', remoteId, peer.iceConnectionState);
+            peer.onsignalingstatechange = () => console.log('État signalisation', remoteId, peer.signalingState);
+            peers.set(remoteId, peer);
+            if (userId < remoteId) {
+                const offer = await peer.createOffer(); await peer.setLocalDescription(offer);
+                console.log('SDP offer envoyée', remoteId, peer.localDescription.sdp);
+                await sendSignal(remoteId, 'offer', peer.localDescription.toJSON());
+            }
+            return peer;
+        }
+        async function processSignals() {
+            const {data} = await api(`${signalUrl()}?after=${lastSignal}`);
+            for (const signal of data.signals || []) {
+                lastSignal = Math.max(lastSignal, signal.id);
+                const peer = await makePeer(signal.sender_id, signal.sender_name);
+                if (signal.type === 'offer') {
+                    await peer.setRemoteDescription(signal.payload);
+                    console.log('SDP offer reçue', signal.sender_id, peer.remoteDescription.sdp);
+                    for (const candidate of pendingCandidates.get(signal.sender_id) || []) {
+                        await peer.addIceCandidate(candidate);
+                    }
+                    pendingCandidates.delete(signal.sender_id);
+                    const answer = await peer.createAnswer(); await peer.setLocalDescription(answer);
+                    console.log('SDP answer envoyée', signal.sender_id, peer.localDescription.sdp);
+                    await sendSignal(signal.sender_id, 'answer', peer.localDescription.toJSON());
+                } else if (signal.type === 'answer') {
+                    await peer.setRemoteDescription(signal.payload);
+                    console.log('SDP answer reçue', signal.sender_id, peer.remoteDescription.sdp);
+                    for (const candidate of pendingCandidates.get(signal.sender_id) || []) {
+                        await peer.addIceCandidate(candidate);
+                    }
+                    pendingCandidates.delete(signal.sender_id);
+                } else if (signal.type === 'candidate') {
+                    if (peer.remoteDescription) {
+                        await peer.addIceCandidate(signal.payload);
+                    } else {
+                        const candidates = pendingCandidates.get(signal.sender_id) || [];
+                        candidates.push(signal.payload);
+                        pendingCandidates.set(signal.sender_id, candidates);
+                        console.log('Candidat ICE mis en attente', signal.sender_id);
+                    }
+                }
+            }
+        }
+        async function refreshParticipants() {
+            const {data} = await api('{% url "video_call_participants" call.room_id %}');
+            for (const participant of data.participants || []) {
+                if (participant.id !== userId) await makePeer(participant.id, participant.name);
+            }
+            status.textContent = `${data.participants.length} participant(s) dans la salle`;
+        }
+        async function start() {
+            if (!accepted) return;
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {facingMode: 'user'},
+                    audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+                });
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (!audioTrack) throw new Error('Aucun micro détecté.');
+                audioTrack.enabled = true;
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (!videoTrack) throw new Error('Aucune caméra détectée.');
+                videoTrack.enabled = true;
+                console.log('Flux local créé', {
+                    audioTracks: localStream.getAudioTracks(),
+                    videoTracks: localStream.getVideoTracks(),
+                });
+                document.getElementById('local-video').srcObject = localStream;
+                document.getElementById('local-video').play().catch(() => {});
+                status.textContent = 'Micro et caméra actifs. Connexion aux participants...';
+                await refreshParticipants(); await processSignals();
+                setInterval(refreshParticipants, 2000); setInterval(processSignals, 800);
+            } catch (error) { status.textContent = 'Autorisation caméra et micro requise.'; }
+        }
+        document.getElementById('toggle-mic').onclick = () => { const button = document.getElementById('toggle-mic'); const label = document.getElementById('mic-label'); const track = localStream?.getAudioTracks()[0]; if (track) { track.enabled = !track.enabled; label.textContent = track.enabled ? 'Micro activé' : 'Micro coupé'; button.classList.toggle('is-muted', !track.enabled); } };
+        document.getElementById('toggle-camera').onclick = event => { const track = localStream?.getVideoTracks()[0]; if (track) { track.enabled = !track.enabled; event.target.textContent = track.enabled ? 'Caméra activée' : 'Caméra coupée'; } };
+        document.getElementById('toggle-portrait').onclick = () => document.body.classList.toggle('portrait');
+        document.getElementById('toggle-fullscreen').onclick = () => document.documentElement.requestFullscreen?.();
+        document.getElementById('enable-sound').onclick = async event => {
+            soundEnabled = !soundEnabled;
+            const button = event.currentTarget;
+            const icon = button.querySelector('.speaker-icon');
+            const label = document.getElementById('sound-label');
+            await unlockAudio();
+            button.setAttribute('aria-pressed', soundEnabled ? 'true' : 'false');
+            button.classList.toggle('is-enabled', soundEnabled);
+            button.classList.toggle('is-muted', !soundEnabled);
+            icon.textContent = soundEnabled ? '\u{1F50A}' : '\u{1F507}';
+            label.textContent = soundEnabled ? 'Haut-parleur activé' : 'Haut-parleur désactivé';
+            status.textContent = soundEnabled ? 'Son des participants activé.' : 'Son des participants désactivé.';
+        };
+        document.addEventListener('click', unlockAudio, {once: true});
+        document.getElementById('hang-up').onclick = () => {
+            api('{% url "video_call_participant_action" call.room_id %}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'hangup'})}).finally(() => {
+                localStream?.getTracks().forEach(track => track.stop());
+                window.location.href = '{% url "hboard" %}';
+            });
+        };
+        document.getElementById('add-participant').onclick = () => document.getElementById('participant-dialog').hidden = false;
+        document.getElementById('cancel-add-participant').onclick = () => document.getElementById('participant-dialog').hidden = true;
+        document.getElementById('confirm-add-participant').onclick = async () => {
+            const participantIds = [...document.querySelectorAll('#available-users input:checked')].map(input => Number(input.value));
+            const {response, data} = await api('{% url "video_call_participant_action" call.room_id %}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'add', participant_ids: participantIds})});
+            if (!response.ok) { window.alert(data.error || 'Impossible d’ajouter le participant.'); return; }
+            document.getElementById('participant-dialog').hidden = true;
+            document.querySelectorAll('#available-users input:checked').forEach(input => input.closest('label').remove());
+        };
+        const acceptButton = document.getElementById('accept-call');
+        const declineButton = document.getElementById('decline-call');
+        acceptButton?.addEventListener('click', async () => {
+            const {response} = await api('{% url "video_call_participant_action" call.room_id %}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'accept'})});
+            if (response.ok) { accepted = true; document.getElementById('incoming-call-dialog').hidden = true; start(); }
+        });
+        declineButton?.addEventListener('click', async () => {
+            await api('{% url "video_call_participant_action" call.room_id %}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'decline'})});
+            window.location.href = '{% url "hboard" %}';
+        });
+        document.getElementById('copy-link').onclick = async event => { await navigator.clipboard.writeText(window.location.href); event.target.textContent = 'Lien copié'; };
+        if (accepted) start();
+    </script>
+</body>
+</html>

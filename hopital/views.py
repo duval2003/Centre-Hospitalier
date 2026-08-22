@@ -1,14 +1,23 @@
 from decimal import Decimal
-import io
+import json
+import uuid
 
-from django.db.models import Q
-from django.http import HttpResponse
+from django.db.models import Count, OuterRef, Q, Subquery, Sum
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.conf import settings
+from django.core.mail import send_mail
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
-from .models import Chambre, ChatMessage, Consultation, Examen, Hospitalisation, LigneOrdonnance, Medicament, CustomUser, DossierMedical, EmploiTempsMedecin, Facture, Ordonnance, Paiement, RendezVous, ResultatExamen, SignalementMedecin
+from .models import Chambre, ChatMessage, Consultation, Examen, Hospitalisation, LigneOrdonnance, Medicament, CustomUser, DossierMedical, EmploiTempsMedecin, Facture, Ordonnance, Paiement, RendezVous, ResultatExamen, SignalementMedecin, Medecin, VideoCall, VideoCallParticipant, VideoSignal
+from .utils import paginate_queryset, get_query_string
 
+
+# ---------------------------------------------------------------------------
+# Génération des documents PDF
+# ---------------------------------------------------------------------------
 
 def _build_ordonnance_pdf(ordonnance):
     patient_name = f"{ordonnance.patient.prenom or ''} {ordonnance.patient.nom or ''}".strip() or ordonnance.patient.username
@@ -79,6 +88,63 @@ def _build_ordonnance_pdf(ordonnance):
     return pdf
 
 
+def _build_facture_pdf(facture):
+    patient_name = f"{facture.patient.prenom or ''} {facture.patient.nom or ''}".strip() or facture.patient.username
+    payments = list(facture.paiement_set.all().order_by('date_paiement'))
+    lines = [
+        'CENTRE HOSPITALIER',
+        'FACTURE HOSPITALIERE',
+        f'Numero : F-{facture.pk:06d}',
+        f'Date : {facture.date_facture.strftime("%d/%m/%Y a %H:%M")}',
+        f'Patient : {patient_name}',
+        '',
+        f'Montant total : {facture.montant_total} FCFA',
+        f'Avance versee : {facture.total_paye} FCFA',
+        f'Reste a payer : {facture.reste_a_payer} FCFA',
+        f'Statut : {"SOLDEE" if facture.reste_a_payer == 0 else "EN ATTENTE"}',
+        '',
+        'DETAIL DES PAIEMENTS',
+    ]
+    if payments:
+        lines.extend(
+            f'{payment.date_paiement.strftime("%d/%m/%Y")} - {payment.mode_paiement} - {payment.montant} FCFA'
+            for payment in payments
+        )
+    else:
+        lines.append('Aucun paiement enregistre')
+    lines.extend(['', 'Document genere par le Centre Hospitalier'])
+
+    def escape_pdf_text(value):
+        return value.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+
+    commands = [
+        'q 0.88 g BT /F1 42 Tf 0.707 0.707 -0.707 0.707 145 300 Tm (CENTRE HOSPITALIER) Tj ET Q',
+        '0.12 0.25 0.35 rg',
+    ]
+    for index, line in enumerate(lines):
+        font_size = 19 if index == 0 else 14 if index == 1 else 11
+        commands.append(f'BT /F1 {font_size} Tf 55 {785 - index * 27} Td ({escape_pdf_text(line)}) Tj ET')
+    stream_content = '\n'.join(commands).encode('latin-1', errors='replace')
+    object_sections = [
+        b'1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+        b'2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+        b'3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n',
+        b'4 0 obj\n<< /Length ' + str(len(stream_content)).encode() + b' >>\nstream\n' + stream_content + b'\nendstream\nendobj\n',
+        b'5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    ]
+    pdf = b'%PDF-1.4\n'
+    offsets = [0]
+    for section in object_sections:
+        offsets.append(len(pdf))
+        pdf += section
+    xref_position = len(pdf)
+    pdf += f'xref\n0 {len(object_sections) + 1}\n0000000000 65535 f \n'.encode()
+    for offset in offsets[1:]:
+        pdf += f'{offset:010d} 00000 n \n'.encode()
+    pdf += f'trailer\n<< /Size {len(object_sections) + 1} /Root 1 0 R >>\nstartxref\n{xref_position}\n%%EOF\n'.encode()
+    return pdf
+
+
 @login_required
 def stock_medicaments(request):
     if request.user.role not in ['admin', 'secretaire', 'medecin']:
@@ -126,14 +192,22 @@ def stock_medicaments(request):
     if search_query:
         medicaments = medicaments.filter(Q(nom__icontains=search_query) | Q(description__icontains=search_query))
 
+    medicaments, extra_query = paginate_queryset(request, medicaments, 6, page_param='page_medicaments')
+
     return render(request, 'stock-medicaments.html', {
         'medicaments': medicaments,
         'search_query': search_query,
         'stock_message': stock_message,
         'stock_errors': stock_errors,
         'user_role': request.user.role,
+        'extra_query_medicaments': extra_query,
+        'page_param_medicaments': 'page_medicaments',
     })
 
+
+# ---------------------------------------------------------------------------
+# Administration des ordonnances et des factures
+# ---------------------------------------------------------------------------
 
 @login_required
 def ordonnances_view(request):
@@ -153,9 +227,13 @@ def ordonnances_view(request):
             | Q(medecin__prenom__icontains=search_query)
         ).distinct()
 
+    ordonnances, extra_query = paginate_queryset(request, ordonnances, 6, page_param='page_ordonnances')
+
     return render(request, 'ordonnances.html', {
         'ordonnances': ordonnances,
         'search_query': search_query,
+        'extra_query_ordonnances': extra_query,
+        'page_param_ordonnances': 'page_ordonnances',
     })
 
 
@@ -171,6 +249,18 @@ def download_ordonnance_pdf(request, ordonnance_id):
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="ordonnance_{ordonnance.pk}.pdf"'
     response.write(_build_ordonnance_pdf(ordonnance))
+    return response
+
+
+@login_required
+def download_facture_pdf(request, facture_id):
+    facture = Facture.objects.select_related('patient').prefetch_related('paiement_set').filter(pk=facture_id).first()
+    if not facture or (request.user != facture.patient and request.user.role != 'secretaire'):
+        return redirect('hboard')
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="facture_{facture.pk}.pdf"'
+    response.write(_build_facture_pdf(facture))
     return response
 
 
@@ -366,6 +456,7 @@ def compte_parametres(request):
         telephone = request.POST.get('telephone', '').strip()
         date_naissance = request.POST.get('date_naissance', '').strip()
         email = request.POST.get('email', '').strip()
+        photo_profil = request.FILES.get('photo_profil')
 
         if not nom:
             profile_errors.append("Le nom est requis.")
@@ -390,6 +481,8 @@ def compte_parametres(request):
             request.user.date_naissance = parse_date(date_naissance) if date_naissance else None
             request.user.email = email
             request.user.username = email
+            if photo_profil:
+                request.user.photo_profil = photo_profil
             request.user.save()
             request.session['user_name'] = f"{prenom} {nom}".strip()
             profile_success = "Vos informations ont été mises à jour avec succès."
@@ -410,8 +503,135 @@ def hboard_view(request):
 
 
 @login_required
+def secretaire_gestion_hospitaliere(request):
+    if request.user.role != 'secretaire':
+        return redirect('hboard')
+
+    return render(request, 'secretaire-gestion-hospitaliere.html', {
+        'patients_for_secretaire': CustomUser.objects.filter(role__in=['user', 'patient']).order_by('nom', 'prenom'),
+        'medecins_for_secretaire': CustomUser.objects.filter(role='medecin').order_by('nom', 'prenom'),
+        'chambres_list': Chambre.objects.order_by('numero'),
+        'factures_list': Facture.objects.select_related('patient').order_by('-date_facture'),
+    })
+
+
+@login_required
+def secretaire_hospitalisations_en_cours(request):
+    if request.user.role != 'secretaire':
+        return redirect('hboard')
+
+    hospitalisations = Hospitalisation.objects.filter(
+        date_sortie__isnull=True,
+    ).select_related('patient', 'medecin', 'chambre').order_by('-date_entree')
+    hospitalisations, extra_query = paginate_queryset(request, hospitalisations, 8, page_param='page_hospitalisations')
+    return render(request, 'secretaire-hospitalisations.html', {
+        'hospitalisations_list': hospitalisations,
+        'extra_query_hospitalisations': extra_query,
+    })
+
+
+def staff_only(request):
+    return request.user.is_authenticated and request.user.role in ['admin', 'secretaire']
+
+
+# ---------------------------------------------------------------------------
+# Vues de gestion communes à l’administration et au secrétariat
+# ---------------------------------------------------------------------------
+
+@login_required
+def staff_rendez_vous(request):
+    if not staff_only(request):
+        return redirect('hboard')
+    query = request.GET.get('q', '').strip()
+    rendez_vous = RendezVous.objects.select_related('patient', 'medecin').order_by('-date_rendez_vous')
+    if query:
+        rendez_vous = rendez_vous.filter(
+            Q(patient__nom__icontains=query) | Q(patient__prenom__icontains=query)
+            | Q(medecin__nom__icontains=query) | Q(medecin__prenom__icontains=query)
+            | Q(motif__icontains=query)
+        )
+    rendez_vous, extra_query = paginate_queryset(request, rendez_vous, 10, page_param='page_rendez_vous')
+    return render(request, 'staff-rendez-vous.html', {
+        'rendez_vous_list': rendez_vous,
+        'search_query': query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def staff_consultations(request):
+    if not staff_only(request):
+        return redirect('hboard')
+    query = request.GET.get('q', '').strip()
+    consultations = Consultation.objects.select_related('patient', 'medecin').order_by('-date_consultation')
+    if query:
+        consultations = consultations.filter(
+            Q(patient__nom__icontains=query) | Q(patient__prenom__icontains=query)
+            | Q(medecin__nom__icontains=query) | Q(medecin__prenom__icontains=query)
+            | Q(motif__icontains=query) | Q(status__icontains=query)
+        )
+    consultations, extra_query = paginate_queryset(request, consultations, 10, page_param='page_consultations_staff')
+    return render(request, 'staff-consultations.html', {
+        'consultations_list': consultations,
+        'search_query': query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def staff_patients(request):
+    if not staff_only(request):
+        return redirect('hboard')
+    query = request.GET.get('q', '').strip()
+    patients = CustomUser.objects.filter(role__in=['user', 'patient']).order_by('nom', 'prenom')
+    if query:
+        patients = patients.filter(
+            Q(nom__icontains=query) | Q(prenom__icontains=query)
+            | Q(email__icontains=query) | Q(telephone__icontains=query)
+        )
+    patients, extra_query = paginate_queryset(request, patients, 10, page_param='page_patients_staff')
+    return render(request, 'staff-patients.html', {
+        'patients_list': patients,
+        'search_query': query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def staff_exam_reports(request):
+    if not staff_only(request):
+        return redirect('hboard')
+    query = request.GET.get('q', '').strip()
+    reports = ResultatExamen.objects.select_related(
+        'examen__patient', 'examen__medecin', 'examen__consultation'
+    ).order_by('-date_resultat')
+    if query:
+        reports = reports.filter(
+            Q(examen__patient__nom__icontains=query)
+            | Q(examen__patient__prenom__icontains=query)
+            | Q(examen__medecin__nom__icontains=query)
+            | Q(examen__medecin__prenom__icontains=query)
+            | Q(examen__type_examen__icontains=query)
+            | Q(resultat__icontains=query)
+            | Q(interpretation__icontains=query)
+        )
+    reports, extra_query = paginate_queryset(request, reports, 10, page_param='page_exam_reports')
+    return render(request, 'staff-exam-reports.html', {
+        'exam_reports_list': reports,
+        'search_query': query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
 def hboard(request):
     user_role = (getattr(request.user, 'role', None) or 'user').lower()
+    if user_role == 'medecin' and not all([
+        request.user.adresse.strip(),
+        request.user.specialite.strip(),
+        request.user.langues.strip(),
+    ]):
+        return redirect('set_specialite_self')
     user_name = request.session.get('user_name') or getattr(request.user, 'prenom', None) or getattr(request.user, 'username', None) or 'utilisateur'
     role_update_message = None
     assignation_message = None
@@ -472,8 +692,10 @@ def hboard(request):
                 except Exception:
                     patient_request_errors.append('Le montant doit être valide.')
                 else:
-                    if montant_decimal < 0:
-                        patient_request_errors.append('Le montant ne peut pas être négatif.')
+                    if montant_decimal <= 0:
+                        patient_request_errors.append('Le montant doit être supérieur à zéro.')
+                    elif montant_decimal > facture.reste_a_payer:
+                        patient_request_errors.append(f'Le montant ne peut pas dépasser le reste à payer de {facture.reste_a_payer} FCFA.')
                     else:
                         Paiement.objects.create(
                             patient=request.user,
@@ -482,9 +704,11 @@ def hboard(request):
                             mode_paiement=mode_paiement,
                             details_paiement=details_paiement,
                         )
-                        facture.status = 'payée'
+                        facture.status = 'payée' if facture.reste_a_payer == 0 else 'en attente'
                         facture.save(update_fields=['status'])
-                        patient_request_message = 'Le paiement a été enregistré avec succès.'
+                        patient_request_message = 'Le paiement a été enregistré. La facture est totalement soldée.' if facture.status == 'payée' else f'Votre avance a été enregistrée. Reste à payer : {facture.reste_a_payer} FCFA.'
+                        request.session['patient_payment_message'] = patient_request_message
+                        return redirect('patient_factures')
         elif action == 'remove_doctor':
             request.user.medecin_traitant = None
             request.user.save(update_fields=['medecin_traitant'])
@@ -702,9 +926,31 @@ def hboard(request):
             if user_id and new_role in ['user', 'medecin', 'secretaire']:
                 target_user = CustomUser.objects.filter(pk=user_id).exclude(pk=request.user.pk).first()
                 if target_user:
-                    target_user.role = new_role
-                    target_user.save()
-                    role_update_message = f"Le rôle de {target_user.prenom or target_user.username} a été mis à jour en {new_role}."
+                        target_user.role = new_role
+                        target_user.save()
+                        role_update_message = f"Le rôle de {target_user.prenom or target_user.username} a été mis à jour en {new_role}."
+                        if new_role == 'medecin':
+                            try:
+                                set_specialite_url = request.build_absolute_uri(reverse('set_specialite_self'))
+                            except Exception:
+                                set_specialite_url = reverse('set_specialite_self')
+
+                            site_name = getattr(settings, 'SITE_NAME', 'Centre Hospitalier')
+                            subject = f"[{site_name}] Action requise : complétez votre profil médecin"
+                            message = (
+                                f"Bonjour {target_user.prenom or target_user.username},\n\n"
+                                f"L'administration de {site_name} vous a défini comme médecin sur la plateforme.\n"
+                                "Merci de renseigner votre adresse, votre spécialité et les langues que vous parlez en suivant le lien ci-dessous :\n\n"
+                                f"{set_specialite_url}\n\n"
+                                "Si vous ne souhaitez pas recevoir ces notifications, contactez l'administration.\n\n"
+                                f"Cordialement,\nL'équipe de {site_name}"
+                            )
+                            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', f'no-reply@{request.get_host().split(":")[0]}')
+                            try:
+                                send_mail(subject, message, from_email, [target_user.email], fail_silently=True)
+                                role_update_message += " Une notification a été envoyée à l'utilisateur pour préciser sa spécialité."
+                            except Exception:
+                                role_update_message += " (Impossible d'envoyer l'email de notification.)"
                 else:
                     role_update_message = "Utilisateur introuvable."
             else:
@@ -877,16 +1123,23 @@ def hboard(request):
                 secretaire_errors.append("Patient introuvable.")
             if facture_id and not facture:
                 secretaire_errors.append("Facture introuvable.")
+            if facture and patient and facture.patient_id != patient.pk:
+                secretaire_errors.append("La facture ne correspond pas au patient sélectionné.")
             if not secretaire_errors:
                 try:
                     montant_decimal = Decimal(montant)
                 except Exception:
                     secretaire_errors.append("Le montant doit être valide.")
                 else:
-                    Paiement.objects.create(patient=patient, facture=facture, montant=montant_decimal, mode_paiement=mode_paiement)
-                    facture.status = 'payée'
-                    facture.save(update_fields=['status'])
-                    secretaire_message = "Le paiement a été enregistré avec succès."
+                    if montant_decimal <= 0:
+                        secretaire_errors.append("Le montant doit être supérieur à zéro.")
+                    elif montant_decimal > facture.reste_a_payer:
+                        secretaire_errors.append(f"Le montant ne peut pas dépasser le reste à payer de {facture.reste_a_payer} FCFA.")
+                    else:
+                        Paiement.objects.create(patient=patient, facture=facture, montant=montant_decimal, mode_paiement=mode_paiement)
+                        facture.status = 'payée' if facture.reste_a_payer == 0 else 'en attente'
+                        facture.save(update_fields=['status'])
+                        secretaire_message = "Le paiement a été enregistré et la facture est totalement soldée." if facture.status == 'payée' else f"Le paiement partiel a été enregistré. Reste à payer : {facture.reste_a_payer} FCFA."
 
     session_exam_message = request.session.pop('exam_result_message', None)
     if session_exam_message and not exam_result_message:
@@ -904,10 +1157,38 @@ def hboard(request):
         'chambres': Chambre.objects.count(),
     }
 
+    department_labels = []
+    department_values = []
+    specialty_names = list(
+        CustomUser.objects.filter(role='medecin').exclude(specialite='').values_list('specialite', flat=True).distinct()
+    )
+    for specialty in specialty_names[:5]:
+        department_labels.append(specialty)
+        department_values.append(RendezVous.objects.filter(medecin__specialite=specialty).count())
+    if not department_labels:
+        department_labels = ['Cardiologie', 'Neurologie', 'Pédiatrie', 'Orthopédie', 'Dermatologie']
+        department_values = [0, 0, 0, 0, 0]
+
+    weekly_activity = [0] * 7
+    for appointment_date in RendezVous.objects.values_list('date_rendez_vous', flat=True):
+        weekly_activity[appointment_date.weekday()] += 1
+    available_rooms = Chambre.objects.filter(disponibilite=True).count()
+    total_rooms = Chambre.objects.count()
+    active_admissions = Hospitalisation.objects.filter(date_sortie__isnull=True).count()
+    discharged_patients = Hospitalisation.objects.filter(date_sortie__isnull=False).count()
+    registered_admissions = Hospitalisation.objects.count()
+    payments_total = Paiement.objects.aggregate(total=Sum('montant'))['total'] or 0
+
     search_results = build_search_results(request, user_role, request.user)
 
     assigned_patients = CustomUser.objects.filter(medecin_traitant=request.user).order_by('nom', 'prenom')
-
+    assigned_patients_count = assigned_patients.count()
+    doctor_chat_messages = ChatMessage.objects.none()
+    if user_role in ['user', 'patient'] and request.user.medecin_traitant_id:
+        doctor_chat_messages = ChatMessage.objects.filter(
+            Q(sender=request.user.medecin_traitant, receiver=request.user) |
+            Q(sender=request.user, receiver=request.user.medecin_traitant)
+        ).select_related('sender', 'receiver').order_by('-created_at')[:5]
     patients_for_secretaire = []
     medecins_for_secretaire = []
     pending_consultations = []
@@ -926,9 +1207,9 @@ def hboard(request):
     patient_consultations_list = Consultation.objects.filter(patient=request.user).select_related('medecin').order_by('-date_creation') if user_role in ['user', 'patient'] else []
     patient_rendez_vous_list = RendezVous.objects.filter(patient=request.user).select_related('medecin').order_by('-date_rendez_vous') if user_role in ['user', 'patient'] else []
     doctor_rendez_vous_list = RendezVous.objects.filter(medecin=request.user).select_related('patient').order_by('-date_rendez_vous') if user_role == 'medecin' else []
-    all_rendez_vous_list = RendezVous.objects.select_related('patient', 'medecin').order_by('-date_rendez_vous')[:12]
-    all_exam_results_list = ResultatExamen.objects.select_related('examen__patient', 'examen__medecin').order_by('-date_resultat')[:12]
-    all_ordonnances_list = Ordonnance.objects.select_related('patient', 'medecin', 'medicament').prefetch_related('lignes_ordonnance__medicament').order_by('-date_creation')[:12]
+    all_rendez_vous_list = RendezVous.objects.select_related('patient', 'medecin').order_by('-date_rendez_vous')
+    all_exam_results_list = ResultatExamen.objects.select_related('examen__patient', 'examen__medecin').order_by('-date_resultat')
+    all_ordonnances_list = Ordonnance.objects.select_related('patient', 'medecin', 'medicament').prefetch_related('lignes_ordonnance__medicament').order_by('-date_creation')
     patient_ordonnances_list = Ordonnance.objects.filter(patient=request.user).select_related('medecin', 'medicament').prefetch_related('lignes_ordonnance__medicament').order_by('-date_creation') if user_role in ['user', 'patient'] else []
     doctor_ordonnances_list = Ordonnance.objects.filter(medecin=request.user).select_related('patient', 'medecin', 'medicament').prefetch_related('lignes_ordonnance__medicament').order_by('-date_creation') if user_role == 'medecin' else []
     patient_factures_list = Facture.objects.filter(patient=request.user).order_by('-date_facture') if user_role in ['user', 'patient'] else []
@@ -939,8 +1220,40 @@ def hboard(request):
     admin_rendez_vous_list = RendezVous.objects.select_related('patient', 'medecin').order_by('-date_rendez_vous')
     admin_medicaments_list = Medicament.objects.all().order_by('nom')
 
+    all_rendez_vous_list, extra_query_all_rendez_vous_list = paginate_queryset(request, all_rendez_vous_list, 6, page_param='page_all_rendez_vous_list')
+    all_exam_results_list, extra_query_all_exam_results_list = paginate_queryset(request, all_exam_results_list, 6, page_param='page_all_exam_results_list')
+    patient_rendez_vous_list, extra_query_patient_rendez_vous_list = paginate_queryset(request, patient_rendez_vous_list, 6, page_param='page_patient_rendez_vous_list')
+    patient_consultations_list, extra_query_patient_consultations_list = paginate_queryset(request, patient_consultations_list, 6, page_param='page_patient_consultations_list')
+    patient_ordonnances_list, extra_query_patient_ordonnances_list = paginate_queryset(request, patient_ordonnances_list, 6, page_param='page_patient_ordonnances_list')
+    patient_factures_list, extra_query_patient_factures_list = paginate_queryset(request, patient_factures_list, 6, page_param='page_patient_factures_list')
+    doctor_rendez_vous_list, extra_query_doctor_rendez_vous_list = paginate_queryset(request, doctor_rendez_vous_list, 6, page_param='page_doctor_rendez_vous_list')
+    admin_patients_list, extra_query_admin_patients_list = paginate_queryset(request, admin_patients_list, 6, page_param='page_admin_patients_list')
+    admin_medecins_list, extra_query_admin_medecins_list = paginate_queryset(request, admin_medecins_list, 6, page_param='page_admin_medecins_list')
+    admin_consultations_list, extra_query_admin_consultations_list = paginate_queryset(request, admin_consultations_list, 6, page_param='page_admin_consultations_list')
+    admin_rendez_vous_list, extra_query_admin_rendez_vous_list = paginate_queryset(request, admin_rendez_vous_list, 6, page_param='page_admin_rendez_vous_list')
+    hospitalisations_list, extra_query_hospitalisations_list = paginate_queryset(request, hospitalisations_list, 6, page_param='page_hospitalisations_list')
+    factures_page, extra_query_factures_page = paginate_queryset(request, factures_list, 6, page_param='page_factures_list')
+    pending_consultations, extra_query_pending_consultations = paginate_queryset(request, pending_consultations, 6, page_param='page_pending_consultations')
+    assigned_patients, extra_query_assigned_patients = paginate_queryset(request, assigned_patients, 6, page_param='page_assigned_patients')
+
     dashboard_context = {
         'stats': stats,
+        'department_labels': department_labels,
+        'department_values': department_values,
+        'weekly_activity': weekly_activity,
+        'dashboard_ops': {
+            'admissions': active_admissions,
+            'sorties': discharged_patients,
+            'lits_disponibles': round((available_rooms / total_rooms) * 100) if total_rooms else 0,
+            'revenus': float(payments_total),
+        },
+        'admissions_funnel': [
+            registered_admissions,
+            Hospitalisation.objects.filter(date_sortie__isnull=True).count(),
+            Consultation.objects.count(),
+            active_admissions,
+            discharged_patients,
+        ],
         'user_name': user_name,
         'user_role': user_role,
         'search_results': search_results,
@@ -948,6 +1261,7 @@ def hboard(request):
         'assignation_message': assignation_message,
         'assigned_doctor': getattr(request.user, 'medecin_traitant', None),
         'assigned_patients': assigned_patients,
+        'doctor_chat_messages': doctor_chat_messages,
         'patient_rendez_vous': RendezVous.objects.filter(patient=request.user).count(),
         'patient_rendez_vous_list': patient_rendez_vous_list,
         'patient_consultations': Consultation.objects.filter(patient=request.user).count(),
@@ -956,7 +1270,7 @@ def hboard(request):
         'medecin_rendez_vous': RendezVous.objects.filter(medecin=request.user).count(),
         'doctor_rendez_vous_list': doctor_rendez_vous_list,
         'medecin_consultations': Consultation.objects.filter(medecin=request.user).count(),
-        'medecin_patients': assigned_patients.count(),
+        'medecin_patients': assigned_patients_count,
         'factures_en_attente': Facture.objects.filter(status='en attente').count(),
         'patient_request_message': patient_request_message,
         'patient_request_errors': patient_request_errors,
@@ -975,7 +1289,9 @@ def hboard(request):
         'chambres_list': chambres_list,
         'hospitalisations_list': hospitalisations_list,
         'factures_list': factures_list,
+        'factures_page': factures_page,
         'pending_consultations': pending_consultations,
+        'assigned_patients': assigned_patients,
         'all_rendez_vous_list': all_rendez_vous_list,
         'all_exam_results_list': all_exam_results_list,
         'all_ordonnances_list': all_ordonnances_list,
@@ -983,6 +1299,21 @@ def hboard(request):
         'doctor_ordonnances_list': doctor_ordonnances_list,
         'patient_factures_list': patient_factures_list,
         'medicaments': medicaments,
+        'extra_query_all_rendez_vous_list': extra_query_all_rendez_vous_list,
+        'extra_query_all_exam_results_list': extra_query_all_exam_results_list,
+        'extra_query_patient_rendez_vous_list': extra_query_patient_rendez_vous_list,
+        'extra_query_patient_consultations_list': extra_query_patient_consultations_list,
+        'extra_query_patient_ordonnances_list': extra_query_patient_ordonnances_list,
+        'extra_query_patient_factures_list': extra_query_patient_factures_list,
+        'extra_query_doctor_rendez_vous_list': extra_query_doctor_rendez_vous_list,
+        'extra_query_admin_patients_list': extra_query_admin_patients_list,
+        'extra_query_admin_medecins_list': extra_query_admin_medecins_list,
+        'extra_query_admin_consultations_list': extra_query_admin_consultations_list,
+        'extra_query_admin_rendez_vous_list': extra_query_admin_rendez_vous_list,
+        'extra_query_hospitalisations_list': extra_query_hospitalisations_list,
+        'extra_query_factures_page': extra_query_factures_page,
+        'extra_query_pending_consultations': extra_query_pending_consultations,
+        'extra_query_assigned_patients': extra_query_assigned_patients,
         'admin_patients_list': admin_patients_list,
         'admin_medecins_list': admin_medecins_list,
         'admin_consultations_list': admin_consultations_list,
@@ -1001,6 +1332,10 @@ def hboard(request):
 
     return render(request, template_name, dashboard_context)
 
+# ---------------------------------------------------------------------------
+# Parcours et espaces dédiés aux patients et aux médecins
+# ---------------------------------------------------------------------------
+
 @login_required
 def patient_consultation(request):
     if request.user.role not in ['user', 'patient']:
@@ -1008,14 +1343,22 @@ def patient_consultation(request):
 
     search_query = request.GET.get('q', '').strip()
     assigned_doctor = request.user.medecin_traitant
-    patient_consultations = Consultation.objects.filter(patient=request.user).select_related('medecin').order_by('-date_creation')
-    if search_query:
-        patient_consultations = patient_consultations.filter(
-            Q(motif__icontains=search_query)
-            | Q(reponse_medecin__icontains=search_query)
-            | Q(medecin__nom__icontains=search_query)
-            | Q(medecin__prenom__icontains=search_query)
-        )
+
+    def get_patient_consultations_queryset():
+        qs = Consultation.objects.filter(patient=request.user).select_related('medecin').order_by('-date_creation')
+        if search_query:
+            qs = qs.filter(
+                Q(motif__icontains=search_query)
+                | Q(reponse_medecin__icontains=search_query)
+                | Q(medecin__nom__icontains=search_query)
+                | Q(medecin__prenom__icontains=search_query)
+            )
+        return qs
+
+    patient_consultations = get_patient_consultations_queryset()
+    consultation_count = patient_consultations.count()
+    pending_count = patient_consultations.filter(status='pending').count()
+    patient_consultations, extra_query_patient_consultations = paginate_queryset(request, patient_consultations, 6, page_param='page_patient_consultations')
     message = None
     errors = []
 
@@ -1091,9 +1434,11 @@ def patient_consultation(request):
         'patient_consultations': patient_consultations,
         'message': message,
         'errors': errors,
-        'consultation_count': patient_consultations.count(),
-        'pending_count': patient_consultations.filter(status='pending').count(),
+        'consultation_count': consultation_count,
+        'pending_count': pending_count,
         'search_query': search_query,
+        'extra_query_patient_consultations': extra_query_patient_consultations,
+        'page_param_patient_consultations': 'page_patient_consultations',
     })
 
 @login_required
@@ -1102,21 +1447,35 @@ def medecin_consultation(request):
         return redirect('hboard')
 
     search_query = request.GET.get('q', '').strip()
-    pending_consultations = Consultation.objects.filter(medecin=request.user, status='pending').select_related('patient').order_by('-date_creation')
-    all_consultations = Consultation.objects.filter(medecin=request.user).select_related('patient').order_by('-date_creation')
-    if search_query:
-        pending_consultations = pending_consultations.filter(
-            Q(motif__icontains=search_query)
-            | Q(reponse_medecin__icontains=search_query)
-            | Q(patient__nom__icontains=search_query)
-            | Q(patient__prenom__icontains=search_query)
-        )
-        all_consultations = all_consultations.filter(
-            Q(motif__icontains=search_query)
-            | Q(reponse_medecin__icontains=search_query)
-            | Q(patient__nom__icontains=search_query)
-            | Q(patient__prenom__icontains=search_query)
-        )
+
+    def get_pending_consultations_queryset():
+        qs = Consultation.objects.filter(medecin=request.user, status='pending').select_related('patient').order_by('-date_creation')
+        if search_query:
+            qs = qs.filter(
+                Q(motif__icontains=search_query)
+                | Q(reponse_medecin__icontains=search_query)
+                | Q(patient__nom__icontains=search_query)
+                | Q(patient__prenom__icontains=search_query)
+            )
+        return qs
+
+    def get_all_consultations_queryset():
+        qs = Consultation.objects.filter(medecin=request.user).select_related('patient').order_by('-date_creation')
+        if search_query:
+            qs = qs.filter(
+                Q(motif__icontains=search_query)
+                | Q(reponse_medecin__icontains=search_query)
+                | Q(patient__nom__icontains=search_query)
+                | Q(patient__prenom__icontains=search_query)
+            )
+        return qs
+
+    pending_consultations = get_pending_consultations_queryset()
+    all_consultations = get_all_consultations_queryset()
+    consultation_count = all_consultations.count()
+    pending_count = pending_consultations.count()
+    pending_consultations, extra_query_pending_consultations = paginate_queryset(request, pending_consultations, 6, page_param='page_pending_consultations')
+    all_consultations, extra_query_all_consultations = paginate_queryset(request, all_consultations, 6, page_param='page_all_consultations')
     message = None
     errors = []
 
@@ -1153,23 +1512,49 @@ def medecin_consultation(request):
                 message = "La demande a été rejetée et signalée pour harcèlement."
             else:
                 message = "La réponse a été envoyée au patient."
-            pending_consultations = Consultation.objects.filter(medecin=request.user, status='pending').select_related('patient').order_by('-date_creation')
-            all_consultations = Consultation.objects.filter(medecin=request.user).select_related('patient').order_by('-date_creation')
+            pending_consultations = get_pending_consultations_queryset()
+            all_consultations = get_all_consultations_queryset()
+
+    pending_consultations, extra_query_pending_consultations = paginate_queryset(request, pending_consultations, 6, page_param='page_pending_consultations')
+    all_consultations, extra_query_all_consultations = paginate_queryset(request, all_consultations, 6, page_param='page_all_consultations')
+    consultation_count = all_consultations.paginator.count
+    pending_count = pending_consultations.paginator.count
 
     return render(request, 'medecin-consultation.html', {
         'pending_consultations': pending_consultations,
         'all_consultations': all_consultations,
         'message': message,
         'errors': errors,
-        'consultation_count': all_consultations.count(),
-        'pending_count': pending_consultations.count(),
+        'consultation_count': consultation_count,
+        'pending_count': pending_count,
         'search_query': search_query,
+        'extra_query_pending_consultations': extra_query_pending_consultations,
+        'page_param_pending_consultations': 'page_pending_consultations',
+        'extra_query_all_consultations': extra_query_all_consultations,
+        'page_param_all_consultations': 'page_all_consultations',
     })
 
 @login_required
 def medecin_list(request):
-    medecins = CustomUser.objects.filter(role='medecin').order_by('nom', 'prenom')
-    return render(request, 'medecin-list.html', {'medecins': medecins})
+    # The active doctor account is CustomUser; the old Medecin table is kept
+    # only for historical compatibility and must not repopulate the registry.
+    medecins_users = CustomUser.objects.filter(role='medecin').order_by('nom', 'prenom')
+
+    doctors = []
+    for u in medecins_users:
+        doctors.append({
+            'id': u.pk,
+            'prenom': u.prenom or '',
+            'nom': u.nom or '',
+            'specialite': getattr(u, 'specialite', ''),
+            'adresse': getattr(u, 'adresse', ''),
+            'langues': getattr(u, 'langues', ''),
+            'telephone': u.telephone or '',
+            'email': u.email,
+            'is_user': True,
+        })
+
+    return render(request, 'medecin-list.html', {'doctors': doctors})
 
 def medecin_planning(request):
     if request.user.role != 'medecin':
@@ -1269,9 +1654,6 @@ def medecin_planning(request):
 
 @login_required
 def view_doctor_planning(request, doctor_id):
-    if request.user.role not in ['user', 'patient']:
-        return redirect('hboard')
-
     doctor = CustomUser.objects.filter(pk=doctor_id, role='medecin').first()
     if not doctor:
         return redirect('hboard')
@@ -1305,6 +1687,40 @@ def view_doctor_planning(request, doctor_id):
     })
 
 
+@login_required
+def set_specialite(request, medecin_id=None):
+    if request.user.role != 'medecin':
+        return redirect('hboard')
+
+    if medecin_id and medecin_id != request.user.pk:
+        return redirect('hboard')
+
+    message = None
+    errors = []
+    if request.method == 'POST':
+        adresse = request.POST.get('adresse', '').strip()
+        specialite = request.POST.get('specialite', '').strip()
+        langues = request.POST.get('langues', '').strip()
+        if not adresse:
+            errors.append("L'adresse est requise.")
+        if not specialite:
+            errors.append('La spécialité est requise.')
+        if not langues:
+            errors.append('Les langues parlées sont requises.')
+        if not errors:
+            request.user.adresse = adresse
+            request.user.specialite = specialite
+            request.user.langues = langues
+            request.user.save(update_fields=['adresse', 'specialite', 'langues'])
+            message = 'Votre profil médecin a bien été enregistré.'
+
+    return render(request, 'set-specialite.html', {
+        'medecin': request.user,
+        'message': message,
+        'errors': errors,
+    })
+
+
 def inscription(request):
     return render(request, 'inscription.html')
 
@@ -1312,25 +1728,593 @@ def connexion(request):
     return render(request, 'connexion.html')
 
 
+# ---------------------------------------------------------------------------
+# Messagerie interne
+# ---------------------------------------------------------------------------
+
 @login_required
 def chat_with_doctor(request, doctor_id):
-    doctor = CustomUser.objects.filter(pk=doctor_id, role='medecin').first()
+    participant = CustomUser.objects.filter(pk=doctor_id).first()
+    can_chat = participant and participant != request.user and (
+        request.user.role in ['admin', 'secretaire']
+        or participant.role == 'medecin'
+        or request.user.role == 'medecin'
+    )
     messages = []
-    if doctor:
+    if can_chat:
+        ChatMessage.objects.filter(
+            sender=participant,
+            receiver=request.user,
+            is_read=False,
+        ).update(is_read=True)
         messages = ChatMessage.objects.filter(
-            (Q(sender=request.user) & Q(receiver=doctor)) | (Q(sender=doctor) & Q(receiver=request.user))
+            (Q(sender=request.user) & Q(receiver=participant)) |
+            (Q(sender=participant) & Q(receiver=request.user))
         ).order_by('created_at')
 
     if request.method == 'POST':
         content = request.POST.get('content', '').strip()
-        if doctor and content:
-            ChatMessage.objects.create(sender=request.user, receiver=doctor, content=content)
-            return redirect('chat_with_doctor', doctor_id=doctor.pk)
+        if can_chat and content:
+            ChatMessage.objects.create(sender=request.user, receiver=participant, content=content)
+            return redirect('chat_with_doctor', doctor_id=participant.pk)
+
+    if request.user.role in ['admin', 'secretaire']:
+        invitees = CustomUser.objects.exclude(pk=request.user.pk).order_by('role', 'nom', 'prenom')
+    elif request.user.role == 'medecin':
+        invitees = CustomUser.objects.filter(
+            Q(role='medecin') | Q(role__in=['patient', 'user'], medecin_traitant=request.user)
+        ).exclude(pk=request.user.pk).order_by('role', 'nom', 'prenom')
+    else:
+        invitees = CustomUser.objects.filter(role='medecin').exclude(pk=request.user.pk).order_by('nom', 'prenom')
 
     return render(request, 'chat.html', {
-        'doctor': doctor,
+        'doctor': participant if participant and participant.role == 'medecin' else None,
+        'participant': participant if can_chat else None,
         'messages': messages,
+        'invitees': invitees,
     })
+
+
+@login_required
+def chat_message_action(request, message_id, action):
+    if request.method != 'POST' or action not in {'edit', 'delete'}:
+        return HttpResponse('Action non autorisée.', status=405)
+
+    message = ChatMessage.objects.filter(pk=message_id).first()
+    if not message or request.user not in {message.sender, message.receiver}:
+        return HttpResponse('Message introuvable.', status=404)
+
+    if action == 'edit':
+        if message.sender_id != request.user.pk:
+            return HttpResponse('Seul l’expéditeur peut modifier ce message.', status=403)
+        content = request.POST.get('content', '').strip()
+        if not content:
+            return redirect('chat_with_doctor', doctor_id=message.receiver_id)
+        message.content = content
+        message.save(update_fields=['content'])
+    else:
+        conversation_user_id = message.receiver_id if message.sender_id == request.user.pk else message.sender_id
+        message.delete()
+        return redirect('chat_with_doctor', doctor_id=conversation_user_id)
+
+    return redirect('chat_with_doctor', doctor_id=message.receiver_id)
+
+
+@login_required
+def chat_bulk_delete(request):
+    if request.method != 'POST':
+        return HttpResponse('Action non autorisée.', status=405)
+
+    try:
+        participant_id = int(request.POST.get('participant_id'))
+    except (TypeError, ValueError):
+        return HttpResponse('Interlocuteur invalide.', status=400)
+
+    message_ids = request.POST.getlist('message_ids')
+    messages = ChatMessage.objects.filter(
+        pk__in=message_ids,
+    ).filter(
+        (Q(sender=request.user) & Q(receiver_id=participant_id)) |
+        (Q(sender_id=participant_id) & Q(receiver=request.user))
+    )
+    messages.delete()
+    return redirect('chat_with_doctor', doctor_id=participant_id)
+
+
+@login_required
+def chat_call_delete(request, call_id):
+    if request.method != 'POST':
+        return HttpResponse('Action non autorisée.', status=405)
+
+    participant = VideoCallParticipant.objects.filter(
+        call_id=call_id,
+        user=request.user,
+    ).select_related('call').first()
+    if not participant:
+        return HttpResponse('Appel introuvable.', status=404)
+
+    participant.history_deleted = True
+    participant.save(update_fields=['history_deleted'])
+    return redirect('chat_inbox')
+
+
+@login_required
+def chat_bulk_delete_calls(request):
+    if request.method != 'POST':
+        return HttpResponse('Action non autorisée.', status=405)
+
+    call_ids = request.POST.getlist('call_ids')
+    VideoCallParticipant.objects.filter(
+        call_id__in=call_ids,
+        user=request.user,
+    ).update(history_deleted=True)
+    return redirect('chat_inbox')
+
+
+@login_required
+def chat_inbox(request):
+    conversation_messages = ChatMessage.objects.filter(
+        (Q(sender=OuterRef('pk')) & Q(receiver=request.user)) |
+        (Q(sender=request.user) & Q(receiver=OuterRef('pk')))
+    ).order_by('-created_at')
+
+    if request.user.role in ['admin', 'secretaire']:
+        contacts = CustomUser.objects.exclude(pk=request.user.pk).order_by('role', 'nom', 'prenom')
+    elif request.user.role == 'medecin':
+        contacts = CustomUser.objects.filter(
+            Q(medecin_traitant=request.user) |
+            Q(messages_envoyes__receiver=request.user) |
+            Q(messages_recus__sender=request.user)
+        ).exclude(pk=request.user.pk).distinct().order_by('role', 'nom', 'prenom')
+    elif request.user.role in ['user', 'patient']:
+        contacts = CustomUser.objects.filter(pk=request.user.medecin_traitant_id) if request.user.medecin_traitant_id else CustomUser.objects.none()
+    else:
+        contacts = CustomUser.objects.none()
+
+    contacts = contacts.annotate(
+        unread_messages=Count(
+            'messages_envoyes',
+            filter=Q(messages_envoyes__receiver=request.user, messages_envoyes__is_read=False),
+        ),
+        last_message_content=Subquery(conversation_messages.values('content')[:1]),
+        last_message_sender_prenom=Subquery(conversation_messages.values('sender__prenom')[:1]),
+        last_message_sender_nom=Subquery(conversation_messages.values('sender__nom')[:1]),
+    )
+
+    call_history = VideoCall.objects.filter(
+        participants__user=request.user,
+        participants__history_deleted=False,
+    ).prefetch_related('participants__user').order_by('-created_at')[:50]
+    for call in call_history:
+        call.interlocutors = [
+            participant.user
+            for participant in call.participants.all()
+            if participant.user_id != request.user.pk
+        ]
+
+    return render(request, 'chat.html', {
+        'participant': None,
+        'messages': [],
+        'invitees': contacts,
+        'conversation_contacts': contacts,
+        'call_history': call_history,
+    })
+
+
+@login_required
+def patient_rendez_vous(request):
+    if request.user.role not in ['user', 'patient']:
+        return redirect('hboard')
+
+    rendez_vous = RendezVous.objects.filter(
+        patient=request.user,
+    ).select_related('medecin').order_by('-date_rendez_vous')
+    rendez_vous, extra_query = paginate_queryset(request, rendez_vous, 8, page_param='page_patient_rendez_vous')
+    return render(request, 'patient-rendez-vous.html', {
+        'rendez_vous_list': rendez_vous,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def patient_ordonnances(request):
+    if request.user.role not in ['user', 'patient']:
+        return redirect('hboard')
+
+    ordonnances = Ordonnance.objects.filter(
+        patient=request.user,
+    ).select_related('medecin', 'medicament').prefetch_related(
+        'lignes_ordonnance__medicament',
+    ).order_by('-date_creation')
+    ordonnances, extra_query = paginate_queryset(request, ordonnances, 8, page_param='page_patient_ordonnances')
+    return render(request, 'patient-ordonnances.html', {
+        'ordonnances_list': ordonnances,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def patient_factures(request):
+    if request.user.role not in ['user', 'patient']:
+        return redirect('hboard')
+
+    factures = Facture.objects.filter(patient=request.user).order_by('-date_facture')
+    factures, extra_query = paginate_queryset(request, factures, 6, page_param='page_patient_factures')
+    return render(request, 'patient-factures.html', {
+        'factures_list': factures,
+        'extra_query': extra_query,
+        'patient_payment_message': request.session.pop('patient_payment_message', None),
+    })
+
+
+@login_required
+def medecin_rendez_vous(request):
+    if request.user.role != 'medecin':
+        return redirect('hboard')
+
+    rendez_vous = RendezVous.objects.filter(
+        medecin=request.user,
+    ).select_related('patient').order_by('-date_rendez_vous')
+    rendez_vous, extra_query = paginate_queryset(request, rendez_vous, 8, page_param='page_medecin_rendez_vous')
+    return render(request, 'medecin-rendez-vous.html', {
+        'rendez_vous_list': rendez_vous,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def medecin_patients(request):
+    if request.user.role != 'medecin':
+        return redirect('hboard')
+
+    search_query = request.GET.get('q', '').strip()
+    patients = CustomUser.objects.filter(
+        role__in=['user', 'patient'],
+        medecin_traitant=request.user,
+    ).order_by('nom', 'prenom')
+    if search_query:
+        patients = patients.filter(
+            Q(nom__icontains=search_query)
+            | Q(prenom__icontains=search_query)
+            | Q(email__icontains=search_query)
+            | Q(telephone__icontains=search_query)
+        )
+    patients, extra_query = paginate_queryset(request, patients, 10, page_param='page_medecin_patients')
+    return render(request, 'medecin-patients.html', {
+        'patients_list': patients,
+        'search_query': search_query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def medecin_ordonnances(request):
+    if request.user.role != 'medecin':
+        return redirect('hboard')
+
+    search_query = request.GET.get('q', '').strip()
+    ordonnances = Ordonnance.objects.filter(
+        medecin=request.user,
+    ).select_related('patient', 'medicament').prefetch_related(
+        'lignes_ordonnance__medicament',
+    ).order_by('-date_creation')
+    if search_query:
+        ordonnances = ordonnances.filter(
+            Q(medicament__nom__icontains=search_query)
+            | Q(lignes_ordonnance__medicament__nom__icontains=search_query)
+            | Q(posologie__icontains=search_query)
+            | Q(patient__nom__icontains=search_query)
+            | Q(patient__prenom__icontains=search_query)
+        ).distinct()
+    ordonnances, extra_query = paginate_queryset(request, ordonnances, 8, page_param='page_medecin_ordonnances')
+    return render(request, 'medecin-ordonnances.html', {
+        'ordonnances_list': ordonnances,
+        'search_query': search_query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def secretaire_ordonnances(request):
+    if request.user.role != 'secretaire':
+        return redirect('hboard')
+
+    search_query = request.GET.get('q', '').strip()
+    ordonnances = Ordonnance.objects.select_related(
+        'patient', 'medecin', 'medicament',
+    ).prefetch_related('lignes_ordonnance__medicament').order_by('-date_creation')
+    if search_query:
+        ordonnances = ordonnances.filter(
+            Q(medicament__nom__icontains=search_query)
+            | Q(lignes_ordonnance__medicament__nom__icontains=search_query)
+            | Q(posologie__icontains=search_query)
+            | Q(patient__nom__icontains=search_query)
+            | Q(patient__prenom__icontains=search_query)
+            | Q(medecin__nom__icontains=search_query)
+            | Q(medecin__prenom__icontains=search_query)
+        ).distinct()
+    ordonnances, extra_query = paginate_queryset(request, ordonnances, 8, page_param='page_secretaire_ordonnances')
+    return render(request, 'secretaire-ordonnances.html', {
+        'ordonnances_list': ordonnances,
+        'search_query': search_query,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def secretaire_factures(request):
+    if request.user.role != 'secretaire':
+        return redirect('hboard')
+
+    facture_error = None
+    if request.method == 'POST' and request.POST.get('action') == 'delete_facture':
+        facture = Facture.objects.filter(pk=request.POST.get('facture_id')).first()
+        if facture:
+            if facture.reste_a_payer > 0:
+                facture_error = f'Impossible de supprimer la facture #{facture.pk} : reste à payer de {facture.reste_a_payer} FCFA.'
+            else:
+                facture.delete()
+
+    factures = Facture.objects.select_related('patient').prefetch_related('paiement_set').order_by('-date_facture')
+    factures, extra_query = paginate_queryset(request, factures, 8, page_param='page_secretaire_factures')
+    return render(request, 'secretaire-factures.html', {
+        'factures_list': factures,
+        'extra_query': extra_query,
+        'facture_error': facture_error,
+    })
+
+
+@login_required
+def medecin_exam_reports(request):
+    if request.user.role != 'medecin':
+        return redirect('hboard')
+
+    reports = ResultatExamen.objects.filter(
+        examen__medecin=request.user,
+    ).select_related('examen__patient', 'examen__medecin').order_by('-date_resultat')
+    reports, extra_query = paginate_queryset(request, reports, 8, page_param='page_medecin_exam_reports')
+    return render(request, 'medecin-exam-reports.html', {
+        'exam_reports_list': reports,
+        'extra_query': extra_query,
+    })
+
+
+@login_required
+def medecin_exam_report_action(request, report_id, action):
+    if request.method != 'POST' or action not in {'edit', 'delete'}:
+        return HttpResponse('Action non autorisée.', status=405)
+
+    report = ResultatExamen.objects.select_related('examen').filter(
+        pk=report_id,
+        examen__medecin=request.user,
+    ).first()
+    if not report or request.user.role != 'medecin':
+        return HttpResponse('Compte rendu introuvable.', status=404)
+
+    if action == 'delete':
+        examen = report.examen
+        report.delete()
+        examen.delete()
+        return redirect('medecin_exam_reports')
+
+    resultat = request.POST.get('resultat', '').strip()
+    interpretation = request.POST.get('interpretation', '').strip()
+    type_examen = request.POST.get('type_examen', '').strip()
+    if resultat:
+        report.resultat = resultat
+        report.interpretation = interpretation
+        report.examen.type_examen = type_examen or report.examen.type_examen
+        report.save(update_fields=['resultat', 'interpretation'])
+        report.examen.save(update_fields=['type_examen'])
+    return redirect('medecin_exam_reports')
+
+
+# ---------------------------------------------------------------------------
+# Appels vidéo et signalisation WebRTC
+# ---------------------------------------------------------------------------
+
+def _json_body(request):
+    try:
+        return json.loads(request.body or '{}')
+    except (TypeError, ValueError):
+        return {}
+
+
+def _call_for_user(room_id, user):
+    return VideoCall.objects.filter(room_id=room_id, active=True, participants__user=user).first()
+
+
+@login_required
+def create_video_call(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée.'}, status=405)
+
+    is_json_request = request.content_type == 'application/json'
+    body = _json_body(request) if is_json_request else {
+        'participant_ids': request.POST.getlist('participant_ids'),
+    }
+    try:
+        participant_ids = {int(value) for value in body.get('participant_ids', [])}
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Participants invalides.'}, status=400)
+
+    participant_ids.discard(request.user.pk)
+    if request.user.role == 'medecin':
+        allowed = CustomUser.objects.filter(
+            Q(role='medecin') | Q(role__in=['patient', 'user'], medecin_traitant=request.user)
+        ).filter(pk__in=participant_ids).exclude(pk=request.user.pk)
+    else:
+        allowed = CustomUser.objects.filter(role='medecin', pk__in=participant_ids)
+
+    call = VideoCall.objects.create(created_by=request.user)
+    VideoCallParticipant.objects.create(call=call, user=request.user, accepted=True)
+    VideoCallParticipant.objects.bulk_create([
+        VideoCallParticipant(call=call, user=user) for user in allowed
+    ])
+    result = {
+        'room_id': str(call.room_id),
+        'url': reverse('video_call', args=[call.room_id]),
+    }
+    if not is_json_request:
+        return redirect(result['url'])
+    return JsonResponse(result)
+
+
+@login_required
+def video_call(request, room_id):
+    call = _call_for_user(room_id, request.user)
+    if not call:
+        return HttpResponse('Cet appel n’est pas disponible pour votre compte.', status=403)
+    current_participant = call.participants.filter(user=request.user).first()
+    existing_ids = call.participants.values_list('user_id', flat=True)
+    available_users = CustomUser.objects.exclude(role='admin').exclude(pk=request.user.pk).exclude(pk__in=existing_ids).order_by('role', 'nom', 'prenom')
+    return render(request, 'video-call.html', {
+        'call': call,
+        'current_user': request.user,
+        'call_accepted': current_participant.accepted,
+        'available_users': available_users,
+    })
+
+
+@login_required
+def video_call_invitations(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Méthode non autorisée.'}, status=405)
+
+    invitations = VideoCallParticipant.objects.filter(
+        user=request.user,
+        accepted=False,
+        call__active=True,
+    ).select_related('call__created_by').order_by('-call__created_at')[:5]
+    return JsonResponse({
+        'invitations': [
+            {
+                'room_id': str(item.call.room_id),
+                'caller': str(item.call.created_by),
+                'url': reverse('video_call', args=[item.call.room_id]),
+                'action_url': reverse('video_call_participant_action', args=[item.call.room_id]),
+            }
+            for item in invitations
+        ]
+    })
+
+
+@login_required
+def video_call_participants(request, room_id):
+    call = _call_for_user(room_id, request.user)
+    if not call:
+        return JsonResponse({'error': 'Salle inconnue.'}, status=403)
+    participants = call.participants.filter(accepted=True).select_related('user').order_by('joined_at')
+    return JsonResponse({
+        'participants': [
+            {
+                'id': item.user_id,
+                'name': str(item.user),
+                'role': item.user.role,
+            }
+            for item in participants
+        ]
+    })
+
+
+@login_required
+def video_call_participant_action(request, room_id):
+    call = _call_for_user(room_id, request.user)
+    if not call or request.method != 'POST':
+        return JsonResponse({'error': 'Action non autorisée.'}, status=403 if not call else 405)
+
+    body = _json_body(request)
+    action = body.get('action')
+    if action in {'accept', 'decline'}:
+        participant = call.participants.filter(user=request.user).first()
+        if not participant:
+            return JsonResponse({'error': 'Participant introuvable.'}, status=404)
+        if action == 'accept':
+            participant.accepted = True
+            participant.save(update_fields=['accepted'])
+        else:
+            participant.delete()
+        return JsonResponse({'accepted': action == 'accept'})
+
+    participant = call.participants.filter(user=request.user, accepted=True).first()
+    if not participant:
+        return JsonResponse({'error': 'Vous devez accepter l’appel.'}, status=403)
+
+    if action == 'hangup':
+        if call.created_by_id == request.user.pk:
+            call.active = False
+            call.save(update_fields=['active'])
+        else:
+            participant.delete()
+        return JsonResponse({'ended': call.created_by_id == request.user.pk})
+
+    if action == 'add':
+        participant_ids = body.get('participant_ids', [])
+        try:
+            participant_ids = {int(value) for value in participant_ids}
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Participants invalides.'}, status=400)
+        participant_ids.discard(request.user.pk)
+        existing_ids = set(call.participants.values_list('user_id', flat=True))
+        users = CustomUser.objects.filter(pk__in=participant_ids).exclude(role='admin').exclude(pk__in=existing_ids)
+        VideoCallParticipant.objects.bulk_create([VideoCallParticipant(call=call, user=user) for user in users])
+        return JsonResponse({'added': users.count()})
+
+    return JsonResponse({'error': 'Action inconnue.'}, status=400)
+
+
+@login_required
+def video_call_signals(request, room_id):
+    call = _call_for_user(room_id, request.user)
+    if not call:
+        return JsonResponse({'error': 'Salle inconnue.'}, status=403)
+    if not call.participants.filter(user=request.user, accepted=True).exists():
+        return JsonResponse({'error': 'Vous devez accepter l’appel.'}, status=403)
+
+    if request.method == 'GET':
+        try:
+            after = int(request.GET.get('after', 0))
+        except (TypeError, ValueError):
+            after = 0
+        signals = call.signals.filter(recipient=request.user, pk__gt=after).select_related('sender')[:100]
+        return JsonResponse({
+            'signals': [
+                {
+                    'id': signal.pk,
+                    'sender_id': signal.sender_id,
+                    'sender_name': str(signal.sender),
+                    'type': signal.signal_type,
+                    'payload': signal.payload,
+                }
+                for signal in signals
+            ]
+        })
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée.'}, status=405)
+
+    body = _json_body(request)
+    try:
+        recipient = CustomUser.objects.get(pk=int(body.get('recipient_id')))
+    except (TypeError, ValueError, CustomUser.DoesNotExist):
+        return JsonResponse({'error': 'Destinataire invalide.'}, status=400)
+    if not call.participants.filter(user=recipient).exists():
+        return JsonResponse({'error': 'Destinataire absent de la salle.'}, status=403)
+    signal_type = body.get('type')
+    if signal_type not in {'offer', 'answer', 'candidate'} or not isinstance(body.get('payload'), dict):
+        return JsonResponse({'error': 'Signal invalide.'}, status=400)
+    signal = VideoSignal.objects.create(
+        call=call,
+        sender=request.user,
+        recipient=recipient,
+        signal_type=signal_type,
+        payload=body['payload'],
+    )
+    return JsonResponse({'id': signal.pk}, status=201)
+
+# ---------------------------------------------------------------------------
+# Authentification et inscription
+# ---------------------------------------------------------------------------
 
 def saveinscription(request):
     if request.method == 'POST':
@@ -1450,7 +2434,7 @@ def register_view(request):
                 user.role = 'user'
             user.save()
             login(request, user)
-            return redirect('hboard')  # Redirige vers la page d'accueil après l'inscription réussie    
+            return redirect('hboard')      
 
     return render(request, 'inscription.html', {'errors': errors})
 
@@ -1468,7 +2452,7 @@ def login_view(request):
         user = authenticate(request, username=email, password=password)
         if user is not None:
             login(request, user)
-            return redirect('hboard')  # Redirige vers la page d'accueil après la connexion réussie
+            return redirect('hboard') 
         else:
             errors.append("Email ou mot de passe incorrect.")
 

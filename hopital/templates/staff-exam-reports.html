@@ -1,0 +1,57 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comptes rendus d'examens | HosPital</title>
+    <link rel="stylesheet" href="{% static 'css/hboard.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="dashboard-shell min-h-screen bg-slate-50 text-slate-800">
+    {% include 'header.html' %}
+    <main class="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+        <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">Laboratoire</p>
+                <h1 class="mt-2 text-3xl font-semibold text-slate-900">Comptes rendus d'examens</h1>
+                <p class="mt-2 text-sm text-slate-500">Consultez les résultats et interprétations transmis par les médecins.</p>
+            </div>
+            <span class="rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">{{ exam_reports_list.paginator.count }} compte(s) rendu(s)</span>
+        </div>
+        <section class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <form method="get" class="mb-6 flex flex-col gap-3 sm:flex-row">
+                <input type="search" name="q" value="{{ search_query }}" placeholder="Rechercher un patient, un médecin, un examen ou un résultat" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm">
+                <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white">Rechercher</button>
+            </form>
+            {% if exam_reports_list %}
+            <div class="grid gap-5 md:grid-cols-2">
+                {% for report in exam_reports_list %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h2 class="font-semibold text-slate-900">{{ report.examen.type_examen }}</h2>
+                            <p class="mt-1 text-xs text-slate-500">{{ report.date_resultat|date:'d/m/Y à H:i' }}</p>
+                        </div>
+                        <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Disponible</span>
+                    </div>
+                    <div class="mt-4 space-y-2 text-sm text-slate-600">
+                        <p><strong>Patient :</strong> {{ report.examen.patient.prenom|default:'' }} {{ report.examen.patient.nom|default:'' }}</p>
+                        <p><strong>Médecin :</strong> Dr {{ report.examen.medecin.prenom|default:'' }} {{ report.examen.medecin.nom|default:'' }}</p>
+                    </div>
+                    <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                        <p><strong>Résultat :</strong> {{ report.resultat }}</p>
+                        {% if report.interpretation %}<p class="mt-2"><strong>Interprétation :</strong> {{ report.interpretation }}</p>{% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% include 'pagination.html' with page_obj=exam_reports_list extra_query=extra_query page_param='page_exam_reports' %}
+            {% else %}
+            <p class="rounded-2xl bg-slate-50 p-8 text-center text-sm text-slate-500">Aucun compte rendu d'examen trouvé.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

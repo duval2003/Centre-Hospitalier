@@ -26,11 +26,11 @@
                 <div>
                     <p class="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-100">Agenda du médecin</p>
                     <h1 class="mt-2 text-3xl font-semibold">Dr {{ doctor.prenom|default:'' }} {{ doctor.nom|default:'' }}</h1>
-                    <p class="mt-2 max-w-2xl text-sm text-cyan-50">Consultez les jours et créneaux disponibles pour cette consultation.</p>
+                    <p class="mt-2 max-w-2xl text-sm text-cyan-50">Consultez les informations et les créneaux disponibles à jour.</p>
                 </div>
                 <div class="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur">
                     <p class="text-sm text-cyan-100">Spécialité</p>
-                    <p class="text-lg font-semibold">{{ doctor.role|default:'Médecin' }}</p>
+                    <p class="text-lg font-semibold">{{ doctor.specialite|default:'Médecin' }}</p>
                 </div>
             </div>
         </section>
@@ -42,6 +42,12 @@
         {% endif %}
 
         <section class="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="mb-6 grid gap-3 border-b border-slate-100 pb-6 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+                <p><span class="font-semibold text-slate-900">Adresse :</span> {{ doctor.adresse|default:'Non renseignée' }}</p>
+                <p><span class="font-semibold text-slate-900">Langues :</span> {{ doctor.langues|default:'Non renseignées' }}</p>
+                <p><span class="font-semibold text-slate-900">Téléphone :</span> {{ doctor.telephone|default:'Non renseigné' }}</p>
+                <p><span class="font-semibold text-slate-900">Email :</span> {{ doctor.email|default:'Non renseigné' }}</p>
+            </div>
             <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="text-xl font-semibold text-slate-900">Disponibilités</h2>
